@@ -1,0 +1,2 @@
+similarly, with using the below backend, create another flutter app, that uses the nudenet model to censor the adult video content.  It should also support material UI and dark theme by defualt. Make everything very userfriendly. Also in the app, add an about us section and make 5 boxes with placeholder images. The images are urls. these can be added later.
+In the about us section, clearly mention why this is going to be made.

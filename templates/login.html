@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block title %}Login - Document Analyzer{% endblock %}
+
+{% block content %}
+<div class="max-w-md mx-auto">
+    <h1 class="text-3xl font-bold mb-8 text-center text-indigo-600">Login</h1>
+    <form id="login-form" class="bg-white dark:bg-gray-800 shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <div class="mb-4">
+            <label class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" for="email">
+                Email
+            </label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white" id="email" type="email" name="email" placeholder="Email" required>
+        </div>
+        <div class="mb-6">
+            <label class="block text-gray-700 dark:text-gray-300 text-sm font-bold mb-2" for="password">
+                Password
+            </label>
+            <input class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 mb-3 leading-tight focus:outline-none focus:shadow-outline dark:bg-gray-700 dark:text-white" id="password" type="password" name="password" placeholder="******************" required>
+        </div>
+        <div class="flex items-center justify-between">
+            <button class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline transition duration-300 flex items-center" type="submit">
+                <span>Sign In</span>
+                <svg id="loading-spinner" class="animate-spin ml-2 h-5 w-5 text-white hidden" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+            </button>
+            <a class="inline-block align-baseline font-bold text-sm text-indigo-500 hover:text-indigo-800" href="{{ url_for('register') }}">
+                Need an account?
+            </a>
+        </div>
+    </form>
+    <div id="result" class="mt-4 text-center"></div>
+</div>
+<script>
+    const form = document.getElementById('login-form');
+    const result = document.getElementById('result');
+    const loadingSpinner = document.getElementById('loading-spinner');
+
+    form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const data = Object.fromEntries(formData.entries());
+
+        loadingSpinner.classList.remove('hidden');
+
+        try {
+            const response = await fetch('/login', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(data),
+            });
+
+            if (response.ok) {
+                const responseData = await response.json();
+                const token = responseData.token;
+                
+                // Set the token in localStorage
+                localStorage.setItem('token', token);
+                
+                // Get the token from the cookie
+                const cookies = document.cookie.split(';');
+                let tokenFromCookie = '';
+                for (let i = 0; i < cookies.length; i++) {
+                    let cookie = cookies[i].trim();
+                    console.log(cookie);
+                    if (cookie.startsWith('token=')) {
+                        tokenFromCookie = cookie.substring('token='.length, cookie.length);
+                        break;
+                    }
+                }
+
+                
+                // If token is in the cookie, set it in localStorage
+                if (tokenFromCookie) {
+                    localStorage.setItem('token', tokenFromCookie);
+                }
+
+                result.innerHTML = '<p class="text-green-600">Login successful! Redirecting...</p>';
+                setTimeout(() => window.location.href = '/dashboard', 1500);
+            } else {
+                const error = await response.json();
+                result.innerHTML = `<p class="text-red-600">Error: ${error.message}</p>`;
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            result.innerHTML = '<p class="text-red-600">An error occurred during login.</p>';
+        } finally {
+            loadingSpinner.classList.add('hidden');
+        }
+    });
+</script>
+<script defer src="https://cloud.umami.is/script.js" data-website-id="fd4b2aa0-cdf8-4735-a1d5-8918dc88a047"></script>
+{% endblock %}

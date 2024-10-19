@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Document Analyzer</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/tailwindcss-dark-mode@1.1.7/prefers-dark.min.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script defer src="http://35.244.13.181:3000/script.js" data-website-id="0d0b7c18-0d76-429a-a67d-676b97bee44f"></script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="fd4b2aa0-cdf8-4735-a1d5-8918dc88a047"></script>
+    <style>
+        [x-cloak] {
+            display: none !important;
+        }
+
+        .fade-enter-active,
+        .fade-leave-active {
+            transition: opacity 0.5s;
+        }
+
+        .fade-enter,
+        .fade-leave-to {
+            opacity: 0;
+        }
+    </style>
+</head>
+
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-white min-h-screen transition-colors duration-300"
+    x-data="{ 
+        darkMode: localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches),
+        sidebarOpen: false, 
+        currentPage: 'scan', 
+        fileName: '', 
+        fileSelected: false, 
+        isLoading: false, 
+        profileDropdownOpen: false, 
+        pastAnalyses: [],
+        analysisResult: null,
+        showDownloadButton: false,
+        action: 'censor',
+        fileExtension: '',
+        recentAnalyses: [],
+        contentTypes: {},
+        pageVisits: 0,
+        userTrend: [],
+        
+        toggleDarkMode() {
+            this.darkMode = !this.darkMode;
+            localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+            if (this.darkMode) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+            if (this.currentPage === 'home') {
+                this.renderCharts();
+            }
+        },
+        
+        fetchPastAnalyses() {
+            fetch(`${BASE_URL}/past_analyses`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': localStorage.getItem('token')
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    this.$nextTick(() => {
+                        this.pastAnalyses = data.map(analysis => ({
+                            ...analysis,
+                            isDownloading: false,
+                            created_at: new Date(analysis.created_at).toLocaleString()
+                        }));
+                        console.log('Past analyses updated:', this.pastAnalyses);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        },
+        viewAnalysisResult(resultPath) {
+            fetch(`${BASE_URL}${resultPath}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': localStorage.getItem('token')
+                }
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                window.open(url, '_blank');
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to load the analysis result. Please try again.');
+            });
+        },
+        updateFileInfo(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.fileSelected = true;
+                this.fileName = file.name;
+                this.fileExtension = file.name.split('.').pop().toLowerCase();
+            } else {
+                this.fileSelected = false;
+                this.fileName = '';
+                this.fileExtension = '';
+            }
+        },
+        async fetchRecentAnalyses() {
+            try {
+                const response = await fetch(`${BASE_URL}/recent_analyses`, {
+                    headers: {
+                        'Authorization': localStorage.getItem('token')
+                    }
+                });
+                this.recentAnalyses = await response.json();
+            } catch (error) {
+                console.error('Error fetching recent analyses:', error);
+            }
+        },
+        async fetchContentTypes() {
+            try {
+                const response = await fetch(`${BASE_URL}/content_types`, {
+                    headers: {
+                        'Authorization': localStorage.getItem('token')
+                    }
+                });
+                this.contentTypes = await response.json();
+                console.log('Content types:', this.contentTypes);  // Add this line for debugging
+                this.renderCharts();  // Call renderCharts after fetching data
+            } catch (error) {
+                console.error('Error fetching content types:', error);
+            }
+        },
+        async fetchPageVisits() {
+            try {
+                const response = await fetch('/api/page_visits', {
+                    headers: {
+                        'Authorization': localStorage.getItem('token')
+                    }
+                });
+                const data = await response.json();
+                this.pageVisits = data.pageVisits;
+            } catch (error) {
+                console.error('Error fetching page visits:', error);
+            }
+        },
+        async fetchUserTrend() {
+            try {
+                const response = await fetch('/api/user_trend', {
+                    headers: {
+                        'Authorization': localStorage.getItem('token')
+                    }
+                });
+                const data = await response.json();
+                this.userTrend = data;
+            } catch (error) {
+                console.error('Error fetching user trend:', error);
+            }
+        },
+        renderCharts() {
+            // Render content types pie chart
+            if (Object.keys(this.contentTypes).length > 0) {
+                const colors = [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#45B39D', '#F06292', '#26C6DA', '#7986CB'
+                ];
+                const contentTypeData = [{
+                    values: Object.values(this.contentTypes),
+                    labels: Object.keys(this.contentTypes),
+                    type: 'pie',
+                    textinfo: 'label+percent',
+                    insidetextorientation: 'radial',
+                    marker: {
+                        colors: colors,
+                        line: {
+                            color: this.darkMode ? '#1F2937' : '#F3F4F6',
+                            width: 2
+                        }
+                    },
+                    
+                }];
+                const layout = {
+                    title: 'Content Types',
+                    height: 250,  // Reduced from 300
+                    //width: 250,   // Added to make it square
+                    margin: { t: 30, b: 0, l: 0, r: 0 },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: this.darkMode ? '#fff' : '#000' },
+                    showlegend: false
+                };
+                Plotly.newPlot('content-types-chart', contentTypeData, layout);
+            } else {
+                console.log('No content types data available');
+            }
+
+            // Render user trend line chart
+            const userTrendData = [{
+                x: this.userTrend.map(item => item.date),
+                y: this.userTrend.map(item => item.visitors),
+                type: 'scatter'
+            }];
+            Plotly.newPlot('user-trend-chart', userTrendData, {
+                margin: { t: 0, b: 0, l: 0, r: 0 },
+                height: 250,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: this.darkMode ? '#fff' : '#000' }
+            });
+        }
+    }"
+    x-init="
+        $watch('darkMode', val => {
+            if (val) {
+                document.documentElement.classList.add('dark');
+            } else {
+                document.documentElement.classList.remove('dark');
+            }
+        });
+        if (darkMode) {
+            document.documentElement.classList.add('dark');
+        }
+        
+        $watch('currentPage', (value) => {
+            if (value === 'history') {
+                fetchPastAnalyses();
+            } else if (value === 'home') {
+                fetchRecentAnalyses();
+                fetchContentTypes();
+                fetchPageVisits();
+                fetchUserTrend();
+                renderCharts();
+            }
+        });
+    "
+>
+
+    <div class="flex h-screen bg-gray-100 dark:bg-gray-900">
+        <!-- Sidebar -->
+        <div :class="{'translate-x-0 ease-out': sidebarOpen, '-translate-x-full ease-in': !sidebarOpen}"
+            class="fixed z-30 inset-y-0 left-0 w-64 transition-all duration-300 transform bg-indigo-600 dark:bg-indigo-800 overflow-y-auto lg:translate-x-0 lg:static lg:inset-0 rounded-r-lg">
+            <div class="flex items-center justify-between p-4">
+                <div class="flex items-center">
+                    <span class="text-white text-2xl mx-2 font-semibold">Dashboard</span>
+                </div>
+                <button @click="sidebarOpen = false" class="text-white focus:outline-none lg:hidden">
+                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                            stroke-linejoin="round" />
+                    </svg>
+                </button>
+            </div>
+
+            <nav class="mt-10">
+                <a @click="currentPage = 'home'; sidebarOpen = false"
+                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
+                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'home'}" href="#">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
+                    </svg>
+                    <span class="mx-3">Home</span>
+                </a>
+
+                <a @click="currentPage = 'scan'; sidebarOpen = false"
+                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
+                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'scan'}" href="#">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
+                        </path>
+                    </svg>
+                    <span class="mx-3">Scan a Document</span>
+                </a>
+
+                <a @click="currentPage = 'history'; fetchPastAnalyses(); sidebarOpen = false"
+                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
+                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'history'}" href="#">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                    <span class="mx-3">Past Analyses</span>
+                </a>
+            </nav>
+        </div>
+
+        <!-- Content area -->
+        <div class="flex-1 flex flex-col overflow-hidden">
+            <header
+                class="flex justify-between items-center py-4 px-6 bg-white dark:bg-gray-800 border-b-4 border-indigo-600 dark:border-indigo-500">
+                <div class="flex items-center">
+                    <button @click="sidebarOpen = !sidebarOpen"
+                        class="text-gray-500 dark:text-gray-300 focus:outline-none">
+                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M4 6H20M4 12H20M4 18H11" stroke="currentColor" stroke-width="2"
+                                stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="flex items-center">
+                    <!-- Dark mode toggle -->
+                    <button @click="toggleDarkMode()" class="mr-4 p-2 rounded-full bg-gray-200 dark:bg-gray-700 transition duration-300">
+                        <svg x-show="!darkMode" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                        <svg x-show="darkMode" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                    </button>
+                    
+                    <!-- Profile dropdown -->
+                    <div class="relative" x-data="{ open: false }">
+                        <button @click="open = !open"
+                            class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-gray-300 transition duration-150 ease-in-out">
+                            <img class="h-8 w-8 rounded-full"
+                                src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+                                alt="Profile photo">
+                        </button>
+                        <div x-show="open" @click.away="open = false"
+                            class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg">
+                            <div class="py-1 rounded-md bg-white dark:bg-gray-800 shadow-xs">
+                                <a @click="currentPage = 'profile'; open = false"
+                                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-150 ease-in-out"
+                                    href="#">Your Profile</a>
+                                <a href="{{ url_for('logout') }}"
+                                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-150 ease-in-out">Sign
+                                    out</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </header>
+
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 dark:bg-gray-900">
+                <div class="container mx-auto px-6 py-8">
+                    <!-- Home Page -->
+                    <div x-show="currentPage === 'home'">
+                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200 mb-8">Welcome to Document Analyzer</h3>
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Recent Analyses</h2>
+                                <ul class="space-y-2">
+                                    <template x-for="analysis in recentAnalyses" :key="analysis.id">
+                                        <li class="flex justify-between items-center text-gray-600 dark:text-gray-400">
+                                            <span x-text="analysis.original_filename"></span>
+                                            <span x-text="analysis.created_at" class="text-sm"></span>
+                                        </li>
+                                    </template>
+                                </ul>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Content Types Analyzed</h2>
+                                <div id="content-types-chart" class="h-64"></div>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Page Visits</h2>
+                                <p class="text-3xl font-bold text-gray-700 dark:text-gray-200" x-text="pageVisits"></p>
+                            </div>
+                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">User Trend</h2>
+                                <div id="user-trend-chart" class="h-64"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Scan Page -->
+                    <div x-show="currentPage === 'scan'">
+                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200">Scan a Document</h3>
+                        <div class="mt-8 flex">
+                            <!-- File upload component (left side) -->
+                            <div class="w-1/2 pr-4">
+                                <!-- Keep your existing file upload form here -->
+                                <form id="analyze-form" enctype="multipart/form-data" @submit.prevent="submitForm">
+                                    <label
+                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Choose a
+                                        file</label>
+                                    <div
+                                        class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
+                                        <div class="space-y-1 text-center">
+                                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor"
+                                                fill="none" viewBox="0 0 48 48" aria-hidden="true">
+                                                <path
+                                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                            <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                                <label for="file-upload"
+                                                    class="relative cursor-pointer bg-white dark:bg-gray-700 rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                                    <span>Upload a file</span>
+                                                    <input id="file-upload" name="file" type="file" class="sr-only"
+                                                        accept=".txt,.pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4,.avi,.mov"
+                                                        @change="updateFileInfo($event)">
+                                                </label>
+                                                <p class="pl-1">or drag and drop</p>
+                                            </div>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                PDF, DOC, TXT, JPG, PNG, MP4 up to 10MB
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <div x-show="fileName" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+                                        Selected file: <span x-text="fileName" class="font-medium"></span>
+                                    </div>
+                                    <div class="mt-4" x-show="fileSelected && ['pdf', 'doc', 'docx', 'txt'].includes(fileExtension)">
+                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Action:</label>
+                                        <select x-model="action" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
+                                            <option value="censor">Censor</option>
+                                            <option value="rephrase">Rephrase</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded-full transition duration-300" :disabled="!fileSelected || isLoading">
+                                        <span x-show="!isLoading">Analyze</span>
+                                        <span x-show="isLoading" class="flex items-center justify-center">
+                                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                            Processing...
+                                        </span>
+                                    </button>
+                                </form>
+                            </div>
+                            
+                            <!-- Analysis stats (right side) -->
+                            <div class="w-1/2 pl-4">
+                                <div id="analysis-stats" class="h-64"></div>
+                            </div>
+                        </div>
+
+                        <!-- Analysis Result -->
+                        <div x-show="showDownloadButton" 
+                             x-transition:enter="transition ease-out duration-300"
+                             x-transition:enter-start="opacity-0 transform scale-90"
+                             x-transition:enter-end="opacity-100 transform scale-100"
+                             class="mt-8 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-lg shadow-md">
+                            <p class="font-bold">Woohoo! Your document has been successfully analyzed! 🎉</p>
+                            <p class="mt-2">You've just unlocked valuable insights from your document. Ready to explore the results?</p>
+                            <div class="mt-4">
+                                <button @click="window.open(`${BASE_URL}${analysisResult}`, '_blank')" 
+                                    class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 inline-block">
+                                    View Analysis Results
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- FAQs -->
+                        <div class="mt-12">
+                            <h4 class="text-2xl font-medium text-gray-700 dark:text-gray-200 mb-4">FAQs</h4>
+                            <div x-data="{selected:null}">
+                                <ul class="shadow-box">
+                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
+                                        <button type="button" class="w-full px-8 py-6 text-left"
+                                            @click="selected !== 1 ? selected = 1 : selected = null">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
+                                                    How does the document analysis work?
+                                                </span>
+                                                <span class="ico-plus"></span>
+                                            </div>
+                                        </button>
+                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
+                                            style="" x-ref="container1"
+                                            x-bind:style="selected == 1 ? 'max-height: ' + $refs.container1.scrollHeight + 'px' : ''">
+                                            <div class="p-6">
+                                                <p class="text-gray-600 dark:text-gray-400">Our AI-powered system
+                                                    analyzes the content of your document, identifying key themes,
+                                                    sentiment, and potential issues. It uses advanced natural
+                                                    language processing techniques to provide insights and
+                                                    suggestions.</p>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
+                                        <button type="button" class="w-full px-8 py-6 text-left"
+                                            @click="selected !== 2 ? selected = 2 : selected = null">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
+                                                    Why is document analysis relevant in today's world?
+                                                </span>
+                                                <span class="ico-plus"></span>
+                                            </div>
+                                        </button>
+                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
+                                            style="" x-ref="container2"
+                                            x-bind:style="selected == 2 ? 'max-height: ' + $refs.container2.scrollHeight + 'px' : ''">
+                                            <div class="p-6">
+                                                <p class="text-gray-600 dark:text-gray-400">In today's
+                                                    information-rich world, document analysis is crucial for
+                                                    efficiently processing large volumes of data, extracting
+                                                    valuable insights, and making informed decisions. It helps
+                                                    businesses and individuals save time, improve accuracy, and
+                                                    uncover patterns that might be missed through manual review.</p>
+                                            </div>
+                                        </div>
+                                    </li>
+                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
+                                        <button type="button" class="w-full px-8 py-6 text-left"
+                                            @click="selected !== 3 ? selected = 3 : selected = null">
+                                            <div class="flex items-center justify-between">
+                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
+                                                    What types of documents can be analyzed?
+                                                </span>
+                                                <span class="ico-plus"></span>
+                                            </div>
+                                        </button>
+                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
+                                            style="" x-ref="container3"
+                                            x-bind:style="selected == 3 ? 'max-height: ' + $refs.container3.scrollHeight + 'px' : ''">
+                                            <div class="p-6">
+                                                <p class="text-gray-600 dark:text-gray-400">Our system can analyze a
+                                                    wide range of document types, including PDFs, Word documents,
+                                                    plain text files, and even images containing text. We support
+                                                    various formats to accommodate different user needs and document
+                                                    sources.</p>
+                                            </div>
+                                        </div>
+                                    </li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div x-show="currentPage === 'profile'">
+                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200">Current Profile</h3>
+                        <div class="mt-8">
+                            <p class="text-gray-600 dark:text-gray-400">Username: John Doe</p>
+                            <p class="text-gray-600 dark:text-gray-400">Year of Study: 3rd Year</p>
+                        </div>
+                    </div>
+
+                    <div x-show="currentPage === 'history'" x-init="fetchPastAnalyses()">
+                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200 mb-6">Past Analyses</h3>
+                        <div class="mt-4">
+                            <template x-if="pastAnalyses.length === 0">
+                                <p class="text-gray-600 dark:text-gray-400">No past analyses found.</p>
+                            </template>
+                            <ul class="space-y-4">
+                                <template x-for="analysis in pastAnalyses" :key="analysis.id">
+                                    <li class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+                                        <div class="flex justify-between items-center">
+                                            <div class="flex items-center space-x-4">
+                                                <!-- File type icon -->
+                                                <div class="flex-shrink-0">
+                                                    <template x-if="analysis.analysis_type === 'document'">
+                                                        <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                                        </svg>
+                                                    </template>
+                                                    <template x-if="analysis.analysis_type === 'image'">
+                                                        <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
+                                                        </svg>
+                                                    </template>
+                                                    <template x-if="analysis.analysis_type === 'video'">
+                                                        <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z"></path>
+                                                        </svg>
+                                                    </template>
+                                                </div>
+                                                <div>
+                                                    <h4 class="text-lg font-semibold text-gray-700 dark:text-gray-200" x-text="analysis.original_filename"></h4>
+                                                    <p class="text-sm text-gray-500 dark:text-gray-400" x-text="'Type: ' + analysis.analysis_type"></p>
+                                                    <p class="text-sm text-gray-500 dark:text-gray-400" x-text="'Created: ' + analysis.created_at"></p>
+                                                </div>
+                                            </div>
+                                            <button @click="viewAnalysisResult(analysis.result_path)" 
+                                                class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 flex items-center">
+                                                <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                                                </svg>
+                                                View Result
+                                            </button>
+                                        </div>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+    </div>
+
+    <script>
+        const BASE_URL = 'http://localhost:5000';
+
+        document.addEventListener('alpine:init', () => {
+            // Get all cookies and log them
+            const cookies = document.cookie.split(';');
+            console.log('All cookies:', cookies);
+
+            // Check for token cookie and set it in localStorage if it exists
+            const tokenCookie = cookies.find(cookie => cookie.trim().startsWith('token='));
+            if (tokenCookie) {
+                const token = tokenCookie.split('=')[1];
+                console.log('Token found in cookie:', token);
+                localStorage.setItem('token', token);
+            } else {
+                console.log('No token cookie found');
+            }
+
+            Alpine.data('dashboard', () => ({
+                darkMode: localStorage.getItem('theme') === 'dark' || (!('theme' in localStorage) && window.matchMedia('(prefers-color-scheme: dark)').matches),
+                sidebarOpen: false,
+                currentPage: 'home',
+                fileName: '',
+                fileSelected: false,
+                isLoading: false,
+                profileDropdownOpen: false,
+                pastAnalyses: [],
+                analysisResult: null,
+                showDownloadButton: false,
+                action: 'censor',
+                fileExtension: '',
+                recentAnalyses: [],
+                contentTypes: {},
+                pageVisits: 0,
+                userTrend: [],
+
+                init() {
+                    this.$watch('darkMode', () => this.applyDarkMode());
+                    this.applyDarkMode();
+                    this.$watch('currentPage', (value) => {
+                        if (value === 'history') {
+                            this.fetchPastAnalyses();
+                        } else if (value === 'home') {
+                            this.fetchRecentAnalyses();
+                            this.fetchContentTypes();
+                            this.fetchPageVisits();
+                            this.fetchUserTrend();
+                            this.renderCharts();
+                        }
+                    });
+
+                    // Initialize the dashboard with the home page
+                    this.currentPage = 'home';
+                    this.fetchRecentAnalyses();
+                    this.fetchContentTypes();
+                    this.fetchPageVisits();
+                    this.fetchUserTrend();
+                    this.renderCharts();
+                },
+
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+                    this.applyDarkMode();
+                    if (this.currentPage === 'home') {
+                        this.renderCharts();
+                    }
+                },
+
+                applyDarkMode() {
+                    if (this.darkMode) {
+                        document.documentElement.classList.add('dark');
+                    } else {
+                        document.documentElement.classList.remove('dark');
+                    }
+                },
+
+                async fetchRecentAnalyses() {
+                    try {
+                        const response = await fetch(`${BASE_URL}/recent_analyses`, {
+                            headers: {
+                                'Authorization': localStorage.getItem('token')
+                            }
+                        });
+                        this.recentAnalyses = await response.json();
+                    } catch (error) {
+                        console.error('Error fetching recent analyses:', error);
+                    }
+                },
+
+                async fetchContentTypes() {
+                    try {
+                        const response = await fetch(`${BASE_URL}/content_types`, {
+                            headers: {
+                                'Authorization': localStorage.getItem('token')
+                            }
+                        });
+                        this.contentTypes = await response.json();
+                        console.log('Content types:', this.contentTypes);  // Add this line for debugging
+                        this.renderCharts();  // Call renderCharts after fetching data
+                    } catch (error) {
+                        console.error('Error fetching content types:', error);
+                    }
+                },
+
+                async fetchPageVisits() {
+                    try {
+                        const response = await fetch('/api/page_visits', {
+                            headers: {
+                                'Authorization': localStorage.getItem('token')
+                            }
+                        });
+                        const data = await response.json();
+                        this.pageVisits = data.pageVisits;
+                    } catch (error) {
+                        console.error('Error fetching page visits:', error);
+                    }
+                },
+
+                async fetchUserTrend() {
+                    try {
+                        const response = await fetch('/api/user_trend', {
+                            headers: {
+                                'Authorization': localStorage.getItem('token')
+                            }
+                        });
+                        const data = await response.json();
+                        this.userTrend = data;
+                    } catch (error) {
+                        console.error('Error fetching user trend:', error);
+                    }
+                },
+
+                renderCharts() {
+                    // Render content types pie chart
+                    if (Object.keys(this.contentTypes).length > 0) {
+                        const colors = [
+                            '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                            '#FF9F40', '#45B39D', '#F06292', '#26C6DA', '#7986CB'
+                        ];
+                        const contentTypeData = [{
+                            values: Object.values(this.contentTypes),
+                            labels: Object.keys(this.contentTypes),
+                            type: 'pie',
+                            textinfo: 'label+percent',
+                            insidetextorientation: 'radial',
+                            marker: {
+                                colors: colors,
+                                line: {
+                                    color: this.darkMode ? '#1F2937' : '#F3F4F6',
+                                    width: 2
+                                }
+                            },
+                            hole: 0.4
+                        }];
+                        const layout = {
+                            title: 'Content Types',
+                            height: 250,  // Reduced from 300
+                            width: 250,   // Added to make it square
+                            margin: { t: 30, b: 0, l: 0, r: 0 },
+                            paper_bgcolor: 'rgba(0,0,0,0)',
+                            plot_bgcolor: 'rgba(0,0,0,0)',
+                            font: { color: this.darkMode ? '#fff' : '#000' },
+                            showlegend: false
+                        };
+                        Plotly.newPlot('content-types-chart', contentTypeData, layout);
+                    } else {
+                        console.log('No content types data available');
+                    }
+
+                    // Render user trend line chart
+                    const userTrendData = [{
+                        x: this.userTrend.map(item => item.date),
+                        y: this.userTrend.map(item => item.visitors),
+                        type: 'scatter'
+                    }];
+                    Plotly.newPlot('user-trend-chart', userTrendData, {
+                        margin: { t: 0, b: 0, l: 0, r: 0 },
+                        height: 250,
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        font: { color: this.darkMode ? '#fff' : '#000' }
+                    });
+                },
+
+                fetchPastAnalyses() {
+                    fetch(`${BASE_URL}/past_analyses`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': localStorage.getItem('token')
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            this.$nextTick(() => {
+                                this.pastAnalyses = data.map(analysis => ({
+                                    ...analysis,
+                                    isDownloading: false,
+                                    created_at: new Date(analysis.created_at).toLocaleString()
+                                }));
+                                console.log('Past analyses updated:', this.pastAnalyses);
+                            });
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                        });
+                },
+
+                viewAnalysisResult(resultPath) {
+                    fetch(`${BASE_URL}${resultPath}`, {
+                        method: 'GET',
+                        headers: {
+                            'Authorization': localStorage.getItem('token')
+                        }
+                    })
+                        .then(response => response.blob())
+                        .then(blob => {
+                            const url = window.URL.createObjectURL(blob);
+                            window.open(url, '_blank');
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            alert('Failed to load the analysis result. Please try again.');
+                        });
+                },
+
+                updateFileInfo(event) {
+                    const file = event.target.files[0];
+                    if (file) {
+                        this.fileSelected = true;
+                        this.fileName = file.name;
+                        this.fileExtension = file.name.split('.').pop().toLowerCase();
+                    } else {
+                        this.fileSelected = false;
+                        this.fileName = '';
+                        this.fileExtension = '';
+                    }
+                },
+
+                submitForm() {
+                    if (!this.fileSelected) {
+                        alert('Please select a file to analyze.');
+                        return;
+                    }
+
+                    this.isLoading = true;
+                    const formData = new FormData(document.getElementById('analyze-form'));
+                    formData.append('action', this.action);
+
+                    fetch(`${BASE_URL}/analyze`, {
+                        method: 'POST',
+                        body: formData,
+                        headers: {
+                            'Authorization': localStorage.getItem('token')
+                        }
+                    })
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log(data);
+                            this.isLoading = false;
+                            this.analysisResult = data.result_path;
+                            this.showDownloadButton = true;
+                            this.updateAnalysisStats(data.stats);
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            this.isLoading = false;
+                            alert('An error occurred while analyzing the file. Please try again.');
+                        });
+                },
+
+                updateAnalysisStats(stats) {
+                    const layout = {
+                        title: 'Document Analysis Stats',
+                        height: 400,
+                        margin: { t: 30, b: 40, l: 60, r: 20 },
+                        paper_bgcolor: 'rgba(0,0,0,0)',
+                        plot_bgcolor: 'rgba(0,0,0,0)',
+                        font: { color: this.darkMode ? '#fff' : '#000' }
+                    };
+
+                    const data = [{
+                        type: 'bar',
+                        x: Object.keys(stats),
+                        y: Object.values(stats),
+                        marker: {
+                            color: 'rgb(158,202,225)',
+                            opacity: 0.6,
+                            line: {
+                                color: 'rgb(8,48,107)',
+                                width: 1.5
+                            }
+                        }
+                    }];
+
+                    Plotly.newPlot('analysis-stats', data, layout);
+                }
+            }));
+        });
+    </script>
+</body>
+</html>

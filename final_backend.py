@@ -67,12 +67,13 @@ from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from typing import List, Dict, Optional, Union, Any
 cfg.change_settings({"IMAGEMAGICK_BINARY": "magick.exe"})
+import moviepy.config as cfg
 from better_profanity import profanity
 from nltk.corpus import wordnet
 import re
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
-
+import moviepy.editor as mp
 # Initialize profanity filter
 profanity.load_censor_words()
 
@@ -313,42 +314,56 @@ class VideoProcessor:
         self.detector = NudeDetector()
         self.whisper_model = whisper.load_model("base")
 
-    def process_video(self, input_path):
-        logger.info(f"Processing video: {input_path}")
+    def process_video(self, input_path, processing_mode='both'):
+        """
+        Process video with specified mode
+        Args:
+            input_path: Path to input video
+            processing_mode: One of 'audio_only', 'video_only', or 'both' (default)
+        """
+        logger.info(f"Processing video: {input_path} with mode: {processing_mode}")
         
         try:
-            # Create temporary directories for frames
             with tempfile.TemporaryDirectory() as temp_dir:
-                frames_dir = os.path.join(temp_dir, 'frames')
-                censored_frames_dir = os.path.join(temp_dir, 'censored_frames')
-                os.makedirs(frames_dir, exist_ok=True)
-                os.makedirs(censored_frames_dir, exist_ok=True)
+                # Initial video setup
+                video = mp.VideoFileClip(input_path)
+                output_path = input_path
+                
+                if processing_mode in ['video_only', 'both']:
+                    # Video processing
+                    frames_dir = os.path.join(temp_dir, 'frames')
+                    censored_frames_dir = os.path.join(temp_dir, 'censored_frames')
+                    os.makedirs(frames_dir, exist_ok=True)
+                    os.makedirs(censored_frames_dir, exist_ok=True)
 
-                # Get video information
-                video_info = self._get_video_info(input_path)
-                frame_rate = video_info['frame_rate']
-                duration = video_info['duration']
-                total_frames = int(frame_rate * duration)
+                    video_info = self._get_video_info(input_path)
+                    frame_rate = video_info['frame_rate']
+                    duration = video_info['duration']
+                    total_frames = int(frame_rate * duration)
 
-                # Extract frames using FFmpeg
-                self._extract_frames(input_path, frames_dir, frame_rate)
+                    self._extract_frames(input_path, frames_dir, frame_rate)
+                    self._process_frames(frames_dir, censored_frames_dir, total_frames)
 
-                # Process and censor frames
-                self._process_frames(frames_dir, censored_frames_dir, total_frames)
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    output_path = self._get_output_path(input_path, f'censored_video_{timestamp}.mp4')
+                    self._reconstruct_video(censored_frames_dir, output_path, input_path, frame_rate)
+                    video = mp.VideoFileClip(output_path)
 
-                # Reconstruct video from censored frames
-                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                out_path = self._get_output_path(input_path, f'censored_video_{timestamp}.mp4')
-                self._reconstruct_video(censored_frames_dir, out_path, input_path, frame_rate)
+                if processing_mode in ['audio_only', 'both']:
+                    # Audio processing
+                    output_path = self._process_audio_profanity(
+                        output_path if processing_mode == 'both' else input_path
+                    )
+                    video = mp.VideoFileClip(output_path)
 
-                # Process audio for profanity
-                processed_video_path = self._process_audio_profanity(out_path)
+                # Add watermark regardless of mode
+                final_output_path = self._add_watermark(output_path, input_path)
+                
+                # Clean up
+                video.close()
 
-                # Add watermark
-                final_output_path = self._add_watermark(processed_video_path, input_path)
-
-            logger.info(f"Video processing complete. Output saved to: {final_output_path}")
-            return final_output_path
+                logger.info(f"Video processing complete. Output saved to: {final_output_path}")
+                return final_output_path
         
         except Exception as e:
             logger.error(f"Error processing video: {str(e)}", exc_info=True)
@@ -459,11 +474,13 @@ class VideoProcessor:
                 # Extract audio
                 video = mp.VideoFileClip(video_path)
                 temp_audio_path = os.path.join(temp_dir, "temp_audio.wav")
-                if video.audio is not None:
-                    video.audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
-                else:
+                
+                if video.audio is None:
                     logger.warning("Video has no audio track")
+                    video.close()
                     return video_path
+
+                video.audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
 
                 # Transcribe audio
                 result = self.whisper_model.transcribe(
@@ -491,7 +508,7 @@ class VideoProcessor:
 
                 # Create output video with processed audio
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-                output_path = self._get_output_path(video_path, f'profanity_processed_{timestamp}.mp4')
+                output_path = self._get_output_path(video_path, f'audio_processed_{timestamp}.mp4')
                 processed_audio_clip = mp.AudioFileClip(temp_processed_audio)
                 final_video = video.set_audio(processed_audio_clip)
 
@@ -848,10 +865,14 @@ def analyze_document(current_user):
             logger.info("Processing video file")
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
                 file.save(temp_file.name)
+                
+                # Get processing mode from request
+                processing_mode = request.form.get('action', 'both')  # Default to 'both' if not specified
+                
                 logger.info("Analyzing and censoring video")
                 video_processor = VideoProcessor()
-                censored_video_path = video_processor.process_video(temp_file.name)
-            
+                censored_video_path = video_processor.process_video(temp_file.name, processing_mode)
+
             # Update the analysis_result
             analysis_result = {
                 'user_id': current_user['_id'],

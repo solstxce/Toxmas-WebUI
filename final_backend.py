@@ -65,6 +65,7 @@ from nltk.corpus import stopwords
 import whisper
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
+from typing import List, Dict, Optional, Union, Any
 cfg.change_settings({"IMAGEMAGICK_BINARY": "magick.exe"})
 from better_profanity import profanity
 from nltk.corpus import wordnet
@@ -340,8 +341,11 @@ class VideoProcessor:
                 out_path = self._get_output_path(input_path, f'censored_video_{timestamp}.mp4')
                 self._reconstruct_video(censored_frames_dir, out_path, input_path, frame_rate)
 
+                # Process audio for profanity
+                processed_video_path = self._process_audio_profanity(out_path)
+
                 # Add watermark
-                final_output_path = self._add_watermark(out_path, input_path)
+                final_output_path = self._add_watermark(processed_video_path, input_path)
 
             logger.info(f"Video processing complete. Output saved to: {final_output_path}")
             return final_output_path
@@ -445,6 +449,112 @@ class VideoProcessor:
         ]
         subprocess.run(cmd, check=True)
 
+    def _process_audio_profanity(self, video_path: str) -> str:
+        """
+        Process the video for profanity and mute inappropriate content
+        """
+        logger.info("Processing audio for profanity")
+        try:
+            with tempfile.TemporaryDirectory() as temp_dir:
+                # Extract audio
+                video = mp.VideoFileClip(video_path)
+                temp_audio_path = os.path.join(temp_dir, "temp_audio.wav")
+                if video.audio is not None:
+                    video.audio.write_audiofile(temp_audio_path, verbose=False, logger=None)
+                else:
+                    logger.warning("Video has no audio track")
+                    return video_path
+
+                # Transcribe audio
+                result = self.whisper_model.transcribe(
+                    temp_audio_path,
+                    language="en",
+                    word_timestamps=True,
+                    verbose=False
+                )
+
+                # Detect profanity
+                profanity_instances = self._detect_profanity_instances(result)
+                
+                if not profanity_instances:
+                    logger.info("No profanity detected in the video")
+                    video.close()
+                    return video_path
+
+                # Process audio with pydub
+                audio = AudioSegment.from_wav(temp_audio_path)
+                processed_audio = self._mute_profanity_segments(audio, profanity_instances)
+
+                # Export processed audio
+                temp_processed_audio = os.path.join(temp_dir, "processed_audio.wav")
+                processed_audio.export(temp_processed_audio, format="wav")
+
+                # Create output video with processed audio
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                output_path = self._get_output_path(video_path, f'profanity_processed_{timestamp}.mp4')
+                processed_audio_clip = mp.AudioFileClip(temp_processed_audio)
+                final_video = video.set_audio(processed_audio_clip)
+
+                final_video.write_videofile(
+                    output_path,
+                    codec='libx264',
+                    audio_codec='aac',
+                    temp_audiofile=os.path.join(temp_dir, 'temp-final-audio.m4a'),
+                    remove_temp=True,
+                    verbose=False,
+                    logger=None
+                )
+
+                # Cleanup
+                video.close()
+                final_video.close()
+                processed_audio_clip.close()
+
+                return output_path
+
+        except Exception as e:
+            logger.error(f"Error processing audio for profanity: {str(e)}")
+            return video_path
+
+    def _detect_profanity_instances(self, transcription: dict) -> List[Dict]:
+        """
+        Detect profanity in transcription with timestamps
+        """
+        profanity_instances = []
+        
+        for segment in transcription["segments"]:
+            if "words" not in segment:
+                continue
+                
+            for word in segment["words"]:
+                word_text = word["word"].strip().lower()
+                if profanity.contains_profanity(word_text):
+                    instance = {
+                        "word": word["word"],
+                        "start_time": int(word["start"] * 1000),  # Convert to milliseconds
+                        "end_time": int(word["end"] * 1000)
+                    }
+                    profanity_instances.append(instance)
+        
+        return sorted(profanity_instances, key=lambda x: x["start_time"])
+
+    def _mute_profanity_segments(self, audio: AudioSegment, profanity_instances: List[Dict]) -> AudioSegment:
+        """
+        Mute sections of audio containing profanity
+        """
+        for instance in profanity_instances:
+            start_time = max(0, instance["start_time"] - 100)  # 100ms buffer
+            end_time = min(len(audio), instance["end_time"] + 100)
+            
+            # Calculate duration and create appropriate silence
+            duration = end_time - start_time
+            mute_segment = AudioSegment.silent(duration=duration)
+            
+            # Replace the segment with silence
+            audio = audio[:start_time] + mute_segment + audio[end_time:]
+        
+        return audio
+
     def _add_watermark(self, video_path, input_path):
         logger.info("Adding watermark to video")
         video = VideoFileClip(video_path)
@@ -487,59 +597,6 @@ class VideoProcessor:
         except Exception as e:
             logger.error(f"Error analyzing image {image_path}: {str(e)}")
             return None
-
-    def extract_audio(self, video_path):
-        video = VideoFileClip(video_path)
-        audio_path = tempfile.mktemp(suffix='.wav')
-        video.audio.write_audiofile(audio_path)
-        video.close()
-        return audio_path
-
-    def transcribe_audio_whisper(self, audio_path):
-        result = self.whisper_model.transcribe(audio_path)
-        return result["text"]
-
-    def convert_audio_to_text_with_timestamps_whisper(self, audio_path, transcribed_text):
-        audio = AudioSegment.from_wav(audio_path)
-        chunk_length_ms = 2000
-        chunks = [audio[i:i + chunk_length_ms] for i in range(0, len(audio), chunk_length_ms)]
-        words = transcribed_text.split()
-        chunk_size = len(words) // len(chunks) if len(chunks) > 0 else len(words)
-        transcription = []
-        for i, chunk in enumerate(chunks):
-            start_time = i * 2
-            chunk_text = " ".join(words[i * chunk_size:(i + 1) * chunk_size])
-            transcription.append((start_time, chunk_text))
-        return transcription
-
-    def find_harmful_word_timestamps(self, transcript_lines, timestamps):
-        mute_times = []
-        for i, line in enumerate(transcript_lines):
-            words = line.split()
-            for word in words:
-                if word.lower() in harmful_words:
-                    mute_times.append(timestamps[i])
-                    break
-        return mute_times
-
-    def mute_video_at_timestamps(self, video_file, mute_times):
-        video = VideoFileClip(video_file)
-        clips = []
-        last_end = 0
-        for timestamp in mute_times:
-            start_time = timestamp
-            end_time = start_time + 1
-            if start_time > last_end:
-                clips.append(video.subclip(last_end, start_time))
-            muted_clip = video.subclip(start_time, end_time).volumex(0)
-            clips.append(muted_clip)
-            last_end = end_time
-        if last_end < video.duration:
-            clips.append(video.subclip(last_end, video.duration))
-        final_clip = concatenate_videoclips(clips)
-        output_path = tempfile.mktemp(suffix='.mp4')
-        final_clip.write_videofile(output_path, codec="libx264", audio_codec="aac")
-        return output_path
 
 # Add these functions from document_rephrase.py
 def get_legal_alternatives(word):

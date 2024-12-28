@@ -14,9 +14,10 @@ from flask_pymongo import PyMongo
 from flasgger import Swagger, swag_from
 from moviepy.editor import CompositeVideoClip, TextClip, VideoFileClip
 from nudenet import NudeDetector
-from PIL import Image
+from PIL import Image, ImageDraw
 from pymongo.errors import ConnectionFailure
 from PyPDF2 import PdfReader
+from reportlab.lib.units import inch
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import letter
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
@@ -68,6 +69,8 @@ cfg.change_settings({"IMAGEMAGICK_BINARY": "magick.exe"})
 from better_profanity import profanity
 from nltk.corpus import wordnet
 import re
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
 
 # Initialize profanity filter
 profanity.load_censor_words()
@@ -87,34 +90,34 @@ app.config['MONGO_URI'] = 'mongodb://localhost:27017/document_analyzer'
 mongo = PyMongo(app)
 
 # RoBERTa model setup
-class RobertaClass(torch.nn.Module):
-    def __init__(self):
-        super(RobertaClass, self).__init__()
-        self.l1 = RobertaModel.from_pretrained("roberta-base")
-        self.pre_classifier = torch.nn.Linear(768, 768)
-        self.dropout = torch.nn.Dropout(0.3)
-        self.classifier = torch.nn.Linear(768, 2)  # Binary classification
+# class RobertaClass(torch.nn.Module):
+#     def __init__(self):
+#         super(RobertaClass, self).__init__()
+#         self.l1 = RobertaModel.from_pretrained("roberta-base")
+#         self.pre_classifier = torch.nn.Linear(768, 768)
+#         self.dropout = torch.nn.Dropout(0.3)
+#         self.classifier = torch.nn.Linear(768, 2)  # Binary classification
 
-    def forward(self, input_ids, attention_mask):
-        outputs = self.l1(input_ids=input_ids, attention_mask=attention_mask)
-        hidden_state = outputs[0]
-        pooler = hidden_state[:, 0]
-        pooler = self.pre_classifier(pooler)
-        pooler = torch.nn.ReLU()(pooler)
-        pooler = self.dropout(pooler)
-        output = self.classifier(pooler)
-        return output
+#     def forward(self, input_ids, attention_mask):
+#         outputs = self.l1(input_ids=input_ids, attention_mask=attention_mask)
+#         hidden_state = outputs[0]
+#         pooler = hidden_state[:, 0]
+#         pooler = self.pre_classifier(pooler)
+#         pooler = torch.nn.ReLU()(pooler)
+#         pooler = self.dropout(pooler)
+#         output = self.classifier(pooler)
+#         return output
 
-logger.info("Initializing RoBERTa model...")
-model = RobertaClass()
-tokenizer = RobertaTokenizer.from_pretrained(r'./tokenizer')
-try:
-    model.load_state_dict(torch.load("pytorch_roberta_cyberbullying.bin", map_location=torch.device('cpu')))
-    model.to('cpu')
-    model.eval()
-    logger.info("RoBERTa model loaded successfully")
-except Exception as e:
-    logger.error(f"Error loading RoBERTa model: {str(e)}")
+# logger.info("Initializing RoBERTa model...")
+# model = RobertaClass()
+# tokenizer = RobertaTokenizer.from_pretrained(r'./tokenizer')
+# try:
+#     model.load_state_dict(torch.load("pytorch_roberta_cyberbullying.bin", map_location=torch.device('cpu')))
+#     model.to('cpu')
+#     model.eval()
+#     logger.info("RoBERTa model loaded successfully")
+# except Exception as e:
+#     logger.error(f"Error loading RoBERTa model: {str(e)}")
 
 # NudeNet Setup
 logger.info("Initializing NudeDetector...")
@@ -166,32 +169,32 @@ abusive_word_list = [
 ]
 
 
-def predict(text, model, tokenizer, max_len=256):
-    model.eval()
+# def predict(text, model, tokenizer, max_len=256):
+#     model.eval()
     
-    inputs = tokenizer.encode_plus(
-        text,
-        None,
-        add_special_tokens=True,
-        max_length=max_len,
-        pad_to_max_length=True,
-        return_token_type_ids=True,
-        return_tensors='pt'
-    )
+#     inputs = tokenizer.encode_plus(
+#         text,
+#         None,
+#         add_special_tokens=True,
+#         max_length=max_len,
+#         pad_to_max_length=True,
+#         return_token_type_ids=True,
+#         return_tensors='pt'
+#     )
     
-    ids = inputs['input_ids'].to('cpu', dtype=torch.long)
-    mask = inputs['attention_mask'].to('cpu', dtype=torch.long)
+#     ids = inputs['input_ids'].to('cpu', dtype=torch.long)
+#     mask = inputs['attention_mask'].to('cpu', dtype=torch.long)
 
-    with torch.no_grad():
-        outputs = model(ids, mask)
+#     with torch.no_grad():
+#         outputs = model(ids, mask)
     
-    probabilities = F.softmax(outputs, dim=1)
-    _, predicted = torch.max(probabilities, 1)
+#     probabilities = F.softmax(outputs, dim=1)
+#     _, predicted = torch.max(probabilities, 1)
     
-    predicted_class = predicted.item()
-    predicted_probability = probabilities[0][predicted_class].item()
+#     predicted_class = predicted.item()
+#     predicted_probability = probabilities[0][predicted_class].item()
     
-    return predicted_class, predicted_probability
+#     return predicted_class, predicted_probability
 
 def categorize_document(abusive_count, total_words):
     percentage = (abusive_count / total_words) * 100
@@ -223,93 +226,27 @@ def analyze_text(text):
     logger.info("Starting text analysis")
     words = preprocess_text(text)
     total_words = len(words)
-    abusive_words = []
-    abusive_word_counts = Counter()
+    profane_words = set()
+    profane_word_count = 0
     
     for word in words:
-        if word.lower() in abusive_word_list:
-            _, probability = predict(word, model, tokenizer)
-            abusive_words.append((word, probability))
-            abusive_word_counts[word.lower()] += 1
+        if profanity.contains_profanity(word):
+            profane_words.add(word)
+            profane_word_count += 1
     
-    # Remove duplicates and add count
-    abusive_words = [(word, prob, abusive_word_counts[word.lower()]) for word, prob in set(abusive_words)]
-    
-    document_state = categorize_document(len(set(word.lower() for word, _, _ in abusive_words)), total_words)
-    pie_chart_path = create_pie_chart(len(set(word.lower() for word, _, _ in abusive_words)), total_words)
+    document_state = categorize_document(len(profane_words), total_words)
+    pie_chart_path = create_pie_chart(len(profane_words), total_words)
     
     logger.info(f"Text analysis complete. Document state: {document_state}")
-    return document_state, abusive_words, total_words, pie_chart_path
+    return document_state, list(profane_words), total_words, profane_word_count, pie_chart_path
 
-def generate_report(document_state, abusive_words, total_words, pie_chart_path, content):
-    logger.info("Generating analysis report")
-    report_path = tempfile.mktemp(suffix='.pdf')
+def generate_report(document_state, profane_words, total_words, profane_word_count, pie_chart_path, content, input_filename):
+    output_filename = f"report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    output_path = os.path.join(ANALYSIS_REPORTS_DIR, output_filename)
     
-    packet = BytesIO()
-    can = canvas.Canvas(packet, pagesize=letter)
-    width, height = letter
-
-    can.drawString(100, height - 50, "Document Analysis")
-    can.drawImage(pie_chart_path, 100, height - 300, width=300, height=200)
-    can.drawString(100, height - 350, f"Document State: {document_state}")
-    can.drawString(100, height - 370, f"Total words (after removing stopwords): {total_words}")
-    can.drawString(100, height - 390, f"Number of unique abusive words found: {len(abusive_words)}")
-    can.drawString(100, height - 410, f"Percentage of abusive words: {(len(abusive_words) / total_words) * 100:.2f}%")
+    create_pdf_output(output_path, content, profane_words, total_words, profane_word_count, input_filename)
     
-    y = height - 450
-    can.drawString(100, y, "Abusive words, their probabilities, and repetition count:")
-    y -= 20
-    for word, prob, count in abusive_words:
-        can.drawString(120, y, f"{word}: {prob:.4f} (repetition count: {count})")
-        y -= 20
-        if y < 50:
-            can.showPage()
-            y = height - 50
-
-    can.showPage()
-
-    words = content.split()
-    x, y = 100, height - 50
-    for word in words:
-        if x + can.stringWidth(word) > width - 100:
-            y -= 20
-            x = 100
-        if y < 50:
-            can.showPage()
-            y = height - 50
-            x = 100
-        
-        can.saveState()
-        if word.lower() in [w.lower() for w, _, _ in abusive_words]:
-            can.setFont("Helvetica-Bold", 12)
-            can.setFillColor(colors.red)
-            can.rect(x, y - 2, can.stringWidth(word), 14, fill=1)
-            can.setFillColor(colors.white)
-            can.drawString(x, y, word)
-        else:
-            can.setFont("Helvetica", 12)
-            can.setFillColor(colors.black)
-            can.drawString(x, y, word)
-        can.restoreState()
-        
-        x += can.stringWidth(word + " ")
-
-    can.save()
-
-    packet.seek(0)
-    new_pdf = PdfReader(packet)
-    output = PdfWriter()
-
-    for page in new_pdf.pages:
-        output.add_page(page)
-
-    with open(report_path, "wb") as output_stream:
-        output.write(output_stream)
-    
-    os.unlink(pie_chart_path)
-    
-    logger.info(f"Report generated successfully: {report_path}")
-    return report_path
+    return output_path
 
 def extract_text(file):
     logger.info(f"Extracting text from file: {file.filename}")
@@ -347,6 +284,19 @@ harmful_words = {
     "terrorist", "bomb", "nazi", "fascist", "racist", "sexist", "homophobe", "transphobe",
     "ableist", "bigot", "hate", "violence", "abuse", "harass", "bully", "threaten"
 }
+
+ALLOWED_CLASSES = [
+    "ANUS_EXPOSED",
+    "BUTTOCKS_EXPOSED",
+    "FEMALE_BREAST_EXPOSED",
+    "MALE_GENITALIA_EXPOSED",
+    "FEMALE_GENITALIA_COVERED",
+    "FEMALE_BREAST_COVERED",
+    "FEMALE_GENITALIA_EXPOSED",
+    "BELLY_EXPOSED"
+]
+
+
 
 import subprocess
 import glob
@@ -386,7 +336,8 @@ class VideoProcessor:
                 self._process_frames(frames_dir, censored_frames_dir, total_frames)
 
                 # Reconstruct video from censored frames
-                out_path = self._get_output_path(input_path, 'censored_video.mp4')
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                out_path = self._get_output_path(input_path, f'censored_video_{timestamp}.mp4')
                 self._reconstruct_video(censored_frames_dir, out_path, input_path, frame_rate)
 
                 # Add watermark
@@ -429,24 +380,53 @@ class VideoProcessor:
     def _process_frames(self, frames_dir, censored_frames_dir, total_frames):
         logger.info("Processing and censoring frames")
         frame_files = sorted(glob.glob(os.path.join(frames_dir, '*.png')))
+        
+        def filter_detections(detections):
+            """Filter detections based on allowed classes and confidence threshold"""
+            return [
+                detection for detection in detections
+                if (detection.get('class') in ALLOWED_CLASSES and
+                    detection.get('score', 0) >= 0.40)  # 60% confidence threshold
+            ]
+
+        def custom_censor(image_path, detections):
+            """Apply custom censoring to detected areas"""
+            image = Image.open(image_path)
+            draw = ImageDraw.Draw(image)
+
+            for detection in detections:
+                box = detection['box']
+                x0, y0, w, h = [int(coord) for coord in box]
+                x1 = x0 + w  # Convert width to right coordinate
+                y1 = y0 + h  # Convert height to bottom coordinate
+                draw.rectangle([x0, y0, x1, y1], fill='black')
+
+            return image
+
         for i, frame_path in enumerate(frame_files):
             try:
-                censored_img_path = self.detector.censor(frame_path)
-                if censored_img_path:
+                # Get and filter detections
+                detections = self.detector.detect(frame_path)
+                filtered_detections = filter_detections(detections)
+
+                # Apply censoring if detections found, otherwise keep original frame
+                if filtered_detections:
+                    logger.debug(f"Found {len(filtered_detections)} detections in frame {i+1}")
+                    censored_img = custom_censor(frame_path, filtered_detections)
                     frame_name = os.path.basename(frame_path)
                     censored_frame_path = os.path.join(censored_frames_dir, frame_name)
-                    os.rename(censored_img_path, censored_frame_path)
+                    censored_img.save(censored_frame_path)
                 else:
-                    logger.warning(f"Censorship returned None for {frame_path}")
-                    # If censorship fails, copy the original frame
+                    # If no detections, copy original frame
                     shutil.copy(frame_path, censored_frames_dir)
+                
+                if (i + 1) % 100 == 0:
+                    logger.info(f"Processed {i + 1}/{total_frames} frames")
+                    
             except Exception as e:
                 logger.error(f"Error processing frame {frame_path}: {str(e)}")
                 # If processing fails, copy the original frame
                 shutil.copy(frame_path, censored_frames_dir)
-            
-            if (i + 1) % 100 == 0:
-                logger.info(f"Processed {i + 1}/{total_frames} frames")
 
     def _reconstruct_video(self, censored_frames_dir, out_path, input_path, frame_rate):
         logger.info("Reconstructing video from censored frames")
@@ -468,12 +448,12 @@ class VideoProcessor:
     def _add_watermark(self, video_path, input_path):
         logger.info("Adding watermark to video")
         video = VideoFileClip(video_path)
-        watermark = (TextClip("Verified by NoHate", fontsize=24, color='white', font='Arial')
+        watermark = (TextClip("Verified by TOX-MAS", fontsize=24, color='white', font='Arial')
                      .set_position(('right', 'bottom'))
                      .set_duration(video.duration))
-        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         final_video = CompositeVideoClip([video, watermark])
-        final_output_path = self._get_output_path(input_path, 'final_censored_video.mp4')
+        final_output_path = self._get_output_path(input_path, f'final_censored_video_{timestamp}.mp4')
         final_video.write_videofile(final_output_path, codec='libx264', audio_codec='aac')
         return final_output_path
 
@@ -586,6 +566,15 @@ def replace_profanity_in_text(text):
     sentences = re.split(r'(?<=[.!?]) +', text)
     replaced_sentences = [replace_profanity_in_sentence(sentence) for sentence in sentences]
     return ' '.join(replaced_sentences)
+
+def check_and_replace_profanity(text):
+    contains_profanity = profanity.contains_profanity(text)
+    replaced_text = replace_profanity_in_text(text)
+    return contains_profanity, replaced_text
+
+# Create a directory for analysis reports
+ANALYSIS_REPORTS_DIR = r"C:\Users\Solstxce\Projects\CSP_Project_NoHate\Document-Analyzer V1\analysis_reports" or os.path.join(os.getcwd(), 'analysis_reports')
+os.makedirs(ANALYSIS_REPORTS_DIR, exist_ok=True)
 
 # Routes
 @app.route('/register', methods=['POST'])
@@ -746,26 +735,31 @@ def analyze_document(current_user):
             
             if action == 'rephrase':
                 logger.info("Rephrasing text")
-                processed_text = replace_profanity_in_text(text)
-                report_path = generate_rephrased_report(processed_text, text)
+                _, processed_text = check_and_replace_profanity(text)
+                report_path = generate_rephrased_report(processed_text, file.filename)
             else:  # Default to censoring
                 logger.info("Analyzing and censoring text")
-                document_state, abusive_words, total_words, pie_chart_path = analyze_text(text)
-                report_path = generate_report(document_state, abusive_words, total_words, pie_chart_path, text)
+                document_state, profane_words, total_words, profane_word_count, pie_chart_path = analyze_text(text)
+                report_path = generate_report(document_state, profane_words, total_words, profane_word_count, pie_chart_path, text, file.filename)
             
-            # Store analysis result in MongoDB
+            # Update the analysis_result
             analysis_result = {
                 'user_id': current_user['_id'],
                 'original_filename': file.filename,
-                'result_filename': 'analysis_report.pdf',
+                'result_filename': os.path.basename(report_path),
                 'result_path': report_path,
                 'analysis_type': 'document',
                 'action': action,
                 'created_at': datetime.utcnow()
             }
-            mongo.db.analyses.insert_one(analysis_result)
+            inserted_id = mongo.db.analyses.insert_one(analysis_result).inserted_id
             
-            return send_file(report_path, as_attachment=True, download_name='analysis_report.pdf', mimetype='application/pdf')
+            return jsonify({
+                'id': str(inserted_id),
+                'result_path': f'/download_analysis/{inserted_id}',
+                'message': 'Document analysis completed successfully'
+            }), 200
+
         elif ext.lower() in ['.jpg', '.jpeg', '.png']:
             logger.info("Processing image file")
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
@@ -775,18 +769,24 @@ def analyze_document(current_user):
                 image_stats = video_processor.analyze_image(temp_file.name)
             os.unlink(temp_file.name)
             
-            # Store analysis result in MongoDB
+            # Update the analysis_result
             analysis_result = {
                 'user_id': current_user['_id'],
                 'original_filename': file.filename,
-                'result_filename': 'image_analysis.json',
-                'result_data': image_stats,
+                'result_filename': 'censored_image.png',
+                'result_path': image_stats['censored_image_path'],
                 'analysis_type': 'image',
                 'created_at': datetime.utcnow()
             }
-            mongo.db.analyses.insert_one(analysis_result)
+            inserted_id = mongo.db.analyses.insert_one(analysis_result).inserted_id
             
-            return jsonify(image_stats), 200
+            return jsonify({
+                'id': str(inserted_id),
+                'result_path': f'/download_analysis/{inserted_id}',
+                'message': 'Image analysis completed successfully',
+                'stats': image_stats
+            }), 200
+
         elif ext.lower() in ['.mp4', '.avi', '.mov']:
             logger.info("Processing video file")
             with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as temp_file:
@@ -795,7 +795,7 @@ def analyze_document(current_user):
                 video_processor = VideoProcessor()
                 censored_video_path = video_processor.process_video(temp_file.name)
             
-            # Store analysis result in MongoDB
+            # Update the analysis_result
             analysis_result = {
                 'user_id': current_user['_id'],
                 'original_filename': file.filename,
@@ -804,13 +804,14 @@ def analyze_document(current_user):
                 'analysis_type': 'video',
                 'created_at': datetime.utcnow()
             }
-            mongo.db.analyses.insert_one(analysis_result)
+            inserted_id = mongo.db.analyses.insert_one(analysis_result).inserted_id
             
-            return send_file(censored_video_path, as_attachment=True, download_name='censored_video.mp4', mimetype='video/mp4')
-        else:
-            logger.error(f"Unsupported file format: {ext}")
-            return jsonify({'message': 'Unsupported file format'}), 400
-        
+            return jsonify({
+                'id': str(inserted_id),
+                'result_path': f'/download_analysis/{inserted_id}',
+                'message': 'Video analysis completed successfully'
+            }), 200
+
     except Exception as e:
         logger.error(f"Error during analysis: {str(e)}", exc_info=True)
         return jsonify({'message': 'An error occurred during analysis'}), 500
@@ -899,30 +900,71 @@ def get_past_analyses(current_user):
             'original_filename': analysis['original_filename'],
             'result_filename': analysis['result_filename'],
             'analysis_type': analysis['analysis_type'],
-            'created_at': analysis['created_at'].isoformat()
+            'created_at': analysis['created_at'].isoformat(),
+            'result_path': f'/download_analysis/{analysis["_id"]}'
         })
     return jsonify(result), 200
 
 # Add a new route to download analysis results
-@app.route('/download_analysis/<analysis_id>', methods=['GET'])
+@app.route('/download_analysis/<analysis_id>', methods=['GET','POST'])
 @token_required
 def download_analysis(current_user, analysis_id):
     analysis = mongo.db.analyses.find_one({'_id': ObjectId(analysis_id), 'user_id': current_user['_id']})
     if not analysis:
         return jsonify({'message': 'Analysis not found'}), 404
 
-    if analysis['analysis_type'] == 'image':
-        return jsonify(analysis['result_data']), 200
-    else:
-        return send_file(analysis['result_path'], as_attachment=True, download_name=analysis['result_filename'])
+    file_path = analysis['result_path']
+    return send_file(file_path, as_attachment=True, download_name=analysis['result_filename'])
 
+@app.route('/view_analysis/<analysis_id>', methods=['GET'])
+@token_required
+def view_analysis(current_user, analysis_id):
+    analysis = mongo.db.analyses.find_one({'_id': ObjectId(analysis_id), 'user_id': current_user['_id']})
+    if not analysis:
+        return jsonify({'message': 'Analysis not found'}), 404
+
+    file_path = analysis['result_path']
+    return send_file(file_path, as_attachment=False)
 # Add a new function to generate a report for rephrased text
-def generate_rephrased_report(rephrased_text, original_text):
-    # Implementation similar to generate_report, but tailored for rephrased text
-    # You'll need to create a PDF that shows the original text and the rephrased text side by side
-    # Use reportlab to create the PDF
-    # Return the path to the generated PDF
-    pass
+def generate_rephrased_report(rephrased_text, input_filename):
+    output_filename = f"rephrased_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+    output_path = os.path.join(ANALYSIS_REPORTS_DIR, output_filename)
+    
+    doc = SimpleDocTemplate(output_path, pagesize=letter)
+    styles = getSampleStyleSheet()
+    
+    # Register a custom font for the watermark
+    pdfmetrics.registerFont(TTFont('Helvetica-Bold', 'helvetica-bold.ttf'))
+    
+    def add_watermark(canvas, doc):
+        canvas.saveState()
+        canvas.setFont('Helvetica-Bold', 40)
+        # canvas.setFont(, 40)
+        canvas.setFillColorRGB(0.9, 0.9, 0.9)  # Light gray color
+        canvas.translate(inch, inch)
+        canvas.rotate(45)
+        canvas.drawCentredString(400, 0, "Analyzed by TOX-MAS")
+        canvas.restoreState()
+    
+    content = []
+    
+    # Add title
+    title_style = ParagraphStyle('Title', parent=styles['Title'], alignment=1, spaceAfter=0.3*inch)
+    title = Paragraph(f"Rephrased Document Report for {input_filename}", title_style)
+    content.append(title)
+    content.append(Spacer(1, 0.25*inch))
+    
+    # Add rephrased text
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], spaceBefore=0.1*inch, spaceAfter=0.1*inch)
+    rephrased_paragraphs = rephrased_text.split('\n')
+    for paragraph in rephrased_paragraphs:
+        content.append(Paragraph(paragraph, normal_style))
+        content.append(Spacer(1, 0.1*inch))
+    
+    # Build the PDF
+    doc.build(content, onFirstPage=add_watermark, onLaterPages=add_watermark)
+    
+    return output_path
 
 # Add these new routes after the existing routes
 
@@ -951,6 +993,98 @@ def get_content_types(current_user):
     result = {item['_id']: item['count'] for item in content_types}
     return jsonify(result), 200
 
+def create_pdf_output(output_path, content, profane_words, total_words, profane_word_count, input_filename):
+    packet = BytesIO()
+    can = canvas.Canvas(packet, pagesize=letter)
+    width, height = letter
+
+    # Register a custom font for the watermark
+    pdfmetrics.registerFont(TTFont('Helvetica-Bold', 'helvetica-bold.ttf'))
+
+    # Set up styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle('Title', parent=styles['Title'], alignment=1, spaceAfter=0.3*inch)
+    heading_style = ParagraphStyle('Heading', parent=styles['Heading2'], spaceBefore=0.2*inch, spaceAfter=0.1*inch)
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], spaceBefore=0.1*inch, spaceAfter=0.1*inch)
+
+    def add_watermark(canvas):
+        canvas.saveState()
+        canvas.setFont('Helvetica-Bold', 40)
+        canvas.setFillColorRGB(0.9, 0.9, 0.9)  # Light gray color
+        canvas.translate(inch, inch)
+        canvas.rotate(45)
+        canvas.drawCentredString(400, 0, "Analyzed by TOX-MAS")
+        canvas.restoreState()
+
+    # Add watermark
+    add_watermark(can)
+
+    # Add title
+    title = Paragraph(f"Document Analysis Report for {input_filename}", title_style)
+    title.wrapOn(can, width - 2*inch, height)
+    title.drawOn(can, inch, height - inch)
+
+    # Add summary
+    summary = [
+        Paragraph("Summary:", heading_style),
+        Paragraph(f"Total words: {total_words}", normal_style),
+        Paragraph(f"Profane words found: {profane_word_count}", normal_style),
+        Paragraph(f"Percentage of profane words: {(profane_word_count / total_words) * 100:.2f}%", normal_style),
+    ]
+
+    y = height - 2*inch
+    for item in summary:
+        item.wrapOn(can, width - 2*inch, height)
+        item.drawOn(can, inch, y)
+        y -= item.height + 0.1*inch
+
+    # Add content heading
+    content_heading = Paragraph("Document Content", heading_style)
+    content_heading.wrapOn(can, width - 2*inch, height)
+    content_heading.drawOn(can, inch, height - 3.5*inch)
+
+    # Add content with censored words
+    words = content.split()
+    x, y = inch, height - 4*inch
+
+    for word in words:
+        is_profane = word in profane_words
+
+        if x + can.stringWidth(word + " ") > width - inch:
+            y -= 20
+            x = inch
+            if y < inch:
+                can.showPage()
+                add_watermark(can)  # Add watermark to new page
+                y = height - inch
+
+        if is_profane:
+            can.setFillColor(colors.black)
+            can.rect(x, y - 2, can.stringWidth(word), 14, fill=1)
+        else:
+            can.setFont("Helvetica", 12)
+            can.setFillColor(colors.black)
+            can.drawString(x, y, word)
+
+        x += can.stringWidth(word + " ")
+
+    # Add footer
+    can.setFont("Helvetica", 8)
+    can.drawString(inch, 0.5*inch, f"Document Analysis Report - Page 1")
+    can.drawRightString(width - inch, 0.5*inch, "Generated by Document Analyzer")
+
+    can.save()
+
+    packet.seek(0)
+    new_pdf = PdfReader(packet)
+    output = PdfWriter()
+
+    for page in new_pdf.pages:
+        output.add_page(page)
+
+    with open(output_path, "wb") as output_stream:
+        output.write(output_stream)
+
 if __name__ == '__main__':
     logger.info("Starting Flask application")
-    app.run(debug=True)
+    app.run(debug=True,use_reloader=False,host='0.0.0.0',port=5000)

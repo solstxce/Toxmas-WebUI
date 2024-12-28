@@ -29,9 +29,9 @@ def login_required(f):
 
 @app.route('/')
 def index():
-    token = request.cookies.get('token')
-    if token:
-        return redirect(url_for('home'))
+    # token = request.cookies.get('token')
+    # if token:
+    #     return redirect(url_for('home'))
     return render_template('index.html')
 
 @app.route('/home')

@@ -1,4 +1,35 @@
+# Large model files
+*.bin
+model_and_tokenizer/*.bin
+
+# Environment and cache
+__pycache__/
+*.py[cod]
+*$py.class
 .env
+.venv
+env/
+venv/
+ENV/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Temporary files
+tmp/
+temp/
+*.tmp
+
+# Logs
+*.log
+logs/
 __pycache__/
 model_and_tokenizer/*
 analysis_reports/*

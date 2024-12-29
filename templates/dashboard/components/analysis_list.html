@@ -1,0 +1,121 @@
+<div class="bg-white dark:bg-gray-800 shadow rounded-lg p-4">
+    <!-- Analysis List Header -->
+    <div class="mb-4 flex justify-between items-center">
+        <h2 class="text-xl font-semibold text-gray-700 dark:text-gray-200">Analysis History</h2>
+        <div class="flex space-x-2">
+            <select class="bg-white dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md px-3 py-1 text-sm">
+                <option value="all">All Types</option>
+                <option value="document">Documents</option>
+                <option value="image">Images</option>
+                <option value="video">Videos</option>
+                <option value="audio">Audio</option>
+            </select>
+        </div>
+    </div>
+
+    <!-- Analysis List -->
+    <ul class="space-y-4">
+        <template x-for="analysis in analyses" :key="analysis.id">
+            <li class="border-b dark:border-gray-700 last:border-b-0 pb-4 last:pb-0">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center space-x-4">
+                        <!-- File Type Icons -->
+                        <div class="flex-shrink-0">
+                            <template x-if="analysis.analysis_type === 'document'">
+                                <svg class="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                                    </path>
+                                </svg>
+                            </template>
+                            <template x-if="analysis.analysis_type === 'image'">
+                                <svg class="w-8 h-8 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                            </template>
+                            <template x-if="analysis.analysis_type === 'video'">
+                                <svg class="w-8 h-8 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z">
+                                    </path>
+                                </svg>
+                            </template>
+                            <template x-if="analysis.analysis_type === 'audio'">
+                                <svg class="w-8 h-8 text-purple-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                          d="M9 19V6l12-3v13M9 19c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zm12-3c0 1.105-1.343 2-3 2s-3-.895-3-2 1.343-2 3-2 3 .895 3 2zM9 10l12-3">
+                                    </path>
+                                </svg>
+                            </template>
+                        </div>
+
+                        <!-- Analysis Details -->
+                        <div>
+                            <h4 class="text-lg font-semibold text-gray-700 dark:text-gray-200" 
+                                x-text="analysis.original_filename"></h4>
+                            <div class="flex space-x-4 text-sm text-gray-500 dark:text-gray-400">
+                                <p x-text="'Type: ' + analysis.analysis_type"></p>
+                                <p x-text="'Created: ' + analysis.created_at"></p>
+                                <p x-text="'Status: ' + analysis.status"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="flex space-x-2">
+                        <button @click="viewAnalysisResult(analysis.id)" 
+                                class="bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z">
+                                </path>
+                            </svg>
+                            View
+                        </button>
+                        <button @click="downloadAnalysisResult(analysis.id, analysis.result_filename)" 
+                                class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 flex items-center">
+                            <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                      d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path>
+                            </svg>
+                            Download
+                        </button>
+                    </div>
+                </div>
+            </li>
+        </template>
+
+        <!-- Empty State -->
+        <template x-if="!analyses.length">
+            <li class="text-center py-8">
+                <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z">
+                    </path>
+                </svg>
+                <p class="mt-2 text-gray-500 dark:text-gray-400">No analyses found</p>
+            </li>
+        </template>
+    </ul>
+
+    <!-- Pagination -->
+    <div class="mt-4 flex justify-between items-center">
+        <div class="text-sm text-gray-500 dark:text-gray-400">
+            Showing <span x-text="analyses.length"></span> results
+        </div>
+        <div class="flex space-x-2">
+            <button class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 
+                         hover:bg-gray-200 dark:hover:bg-gray-600 transition duration-300">
+                Previous
+            </button>
+            <button class="px-3 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300 
+                         hover:bg-gray-200 dark:hover:bg-gray-600 transition duration-300">
+                Next
+            </button>
+        </div>
+    </div>
+</div> 

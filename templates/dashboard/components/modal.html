@@ -1,0 +1,25 @@
+<div x-show="modalOpen" 
+     class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center"
+     x-transition:enter="transition ease-out duration-300"
+     x-transition:enter-start="opacity-0"
+     x-transition:enter-end="opacity-100"
+     x-transition:leave="transition ease-in duration-200"
+     x-transition:leave-start="opacity-100"
+     x-transition:leave-end="opacity-0"
+     @click.away="closeModal()"
+     style="backdrop-filter: blur(5px);">
+    
+    <div class="relative w-11/12 h-5/6 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
+        <button @click="closeModal()" 
+                class="absolute top-0 right-0 mt-4 mr-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-white 
+                       transition duration-150 rounded-full w-8 h-8 flex items-center justify-center 
+                       bg-white dark:bg-gray-800 border border-red-600 dark:border-red-400">
+            <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+            </svg>
+        </button>
+        <div class="w-full h-full p-4">
+            <iframe x-bind:src="modalContent" class="w-full h-full" frameborder="0"></iframe>
+        </div>
+    </div>
+</div> 

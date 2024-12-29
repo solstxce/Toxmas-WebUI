@@ -1,0 +1,52 @@
+<div class="fixed inset-y-0 left-0 w-64 bg-white dark:bg-gray-800 shadow-lg transition-all duration-300 z-30"
+     :class="{'translate-x-0': sidebarOpen, '-translate-x-full': !sidebarOpen}">
+    <div class="flex flex-col h-full">
+        <!-- Logo -->
+        <div class="flex items-center justify-between px-6 py-4 border-b dark:border-gray-700">
+            <a href="{{ url_for('dashboard') }}" class="text-xl font-bold text-gray-800 dark:text-white">
+                TOX-MAS
+            </a>
+            <button @click="sidebarOpen = false" class="md:hidden text-gray-500 hover:text-gray-700 dark:text-gray-400">
+                <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+                </svg>
+            </button>
+        </div>
+
+        <!-- Navigation -->
+        <nav class="flex-1 px-4 py-6 space-y-2">
+            <a href="{{ url_for('dashboard') }}"
+               class="flex items-center px-4 py-2 rounded-lg transition-colors duration-200"
+               :class="{'bg-indigo-500 text-white': currentPage === 'dashboard',
+                       'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700': currentPage !== 'dashboard'}">
+                <svg class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"/>
+                </svg>
+                Dashboard
+            </a>
+
+            <a href="{{ url_for('dashboard_scan') }}"
+               class="flex items-center px-4 py-2 rounded-lg transition-colors duration-200"
+               :class="{'bg-indigo-500 text-white': currentPage === 'dashboard_scan',
+                       'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700': currentPage !== 'dashboard_scan'}">
+                <svg class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+                </svg>
+                Scan Document
+            </a>
+
+            <a href="{{ url_for('dashboard_history') }}"
+               class="flex items-center px-4 py-2 rounded-lg transition-colors duration-200"
+               :class="{'bg-indigo-500 text-white': currentPage === 'dashboard_history',
+                       'text-gray-600 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-gray-700': currentPage !== 'dashboard_history'}">
+                <svg class="h-6 w-6 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                          d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                </svg>
+                History
+            </a>
+        </nav>
+    </div>
+</div> 

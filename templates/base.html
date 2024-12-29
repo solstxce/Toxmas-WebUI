@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}Document Analyzer{% endblock %}</title>
+    <title>{% block title %}ToxMas Document Analyzer{% endblock %}</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
     <style>
@@ -28,7 +28,7 @@
       x-init="$watch('darkMode', val => val ? document.documentElement.classList.add('dark') : document.documentElement.classList.remove('dark'))">
     <div class="container mx-auto px-4 py-8">
         <nav class="flex justify-between items-center mb-8">
-            <a href="/" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition duration-300">Document Analyzer</a>
+            <a href="/" class="text-2xl font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 transition duration-300">ToxMas Document Analyzer</a>
             <div>
                 {% if not session.get('user_id') %}
                     <a href="{{ url_for('login') }}" class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-200 mr-4 transition duration-300">Login</a>
@@ -41,6 +41,9 @@
             </div>
         </nav>
         {% block content %}{% endblock %}
+    </div>
+    <div class="{% block footer_class %}{% endblock %}">
+        {% include 'components/footer.html' %}
     </div>
 </body>
 </html>

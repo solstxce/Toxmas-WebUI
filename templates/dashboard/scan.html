@@ -1,0 +1,73 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div x-data="scanDocument()">
+    <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200">Scan a Document</h3>
+    <div class="mt-8 flex">
+        {% include 'dashboard/components/file_upload.html' %}
+        {% include 'dashboard/components/processing_options.html' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function scanDocument() {
+    return {
+        fileName: '',
+        fileSelected: false,
+        isLoading: false,
+        action: 'censor',
+        fileExtension: '',
+        
+        updateFileInfo(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.fileSelected = true;
+                this.fileName = file.name;
+                this.fileExtension = file.name.split('.').pop().toLowerCase();
+            } else {
+                this.fileSelected = false;
+                this.fileName = '';
+                this.fileExtension = '';
+            }
+        },
+        
+        async submitForm() {
+            if (!this.fileSelected) {
+                alert('Please select a file to analyze.');
+                return;
+            }
+
+            this.isLoading = true;
+            const formData = new FormData(document.getElementById('analyze-form'));
+            formData.append('action', this.action);
+
+            fetch(`${BASE_URL}/analyze`, {
+                method: 'POST',
+                body: formData,
+                headers: {
+                    'Authorization': localStorage.getItem('token')
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    console.log(data);
+                    this.isLoading = false;
+                    this.analysisResult = data.id;
+                    this.showDownloadButton = true;
+                    if (data.stats) {
+                        this.updateAnalysisStats(data.stats);
+                    }
+                    alert(data.message);
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    this.isLoading = false;
+                    alert('An error occurred while analyzing the file. Please try again.');
+                });
+        }
+    }
+}
+</script>
+{% endblock %} 

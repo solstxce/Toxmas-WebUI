@@ -1,0 +1,31 @@
+<div class="max-w-4xl mx-auto">
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="flex items-center space-x-6 mb-6">
+            <img class="h-24 w-24 rounded-full" 
+                 :src="user.picture || '{{ url_for('static', filename='img/default-avatar.png') }}'" 
+                 alt="Profile picture">
+            <div>
+                <h2 class="text-2xl font-bold text-gray-900 dark:text-white" x-text="user.name"></h2>
+                <p class="text-gray-600 dark:text-gray-400" x-text="user.email"></p>
+            </div>
+        </div>
+
+        <div class="border-t dark:border-gray-700 pt-6">
+            <h3 class="text-lg font-semibold text-gray-900 dark:text-white mb-4">Account Statistics</h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Total Analyses</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="user.total_analyses"></p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Member Since</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="formatDate(user.created_at)"></p>
+                </div>
+                <div class="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
+                    <p class="text-sm text-gray-600 dark:text-gray-400">Last Login</p>
+                    <p class="text-2xl font-bold text-gray-900 dark:text-white" x-text="formatDate(user.last_login)"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div> 

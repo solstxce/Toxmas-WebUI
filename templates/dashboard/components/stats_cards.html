@@ -1,0 +1,41 @@
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+    <!-- Total Analyses -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-indigo-100 dark:bg-indigo-900">
+                <svg class="h-8 w-8 text-indigo-600 dark:text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"/>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Total Analyses</p>
+                <p class="text-lg font-semibold text-gray-700 dark:text-gray-200" x-text="recentAnalyses.length"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Page Visits -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6">
+        <div class="flex items-center">
+            <div class="p-3 rounded-full bg-green-100 dark:bg-green-900">
+                <svg class="h-8 w-8 text-green-600 dark:text-green-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                          d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
+                </svg>
+            </div>
+            <div class="ml-4">
+                <p class="text-sm font-medium text-gray-500 dark:text-gray-400">Page Visits</p>
+                <p class="text-lg font-semibold text-gray-700 dark:text-gray-200" x-text="pageVisits"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Content Types Distribution -->
+    <div class="bg-white dark:bg-gray-800 shadow rounded-lg p-6 col-span-2">
+        <h3 class="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Content Types</h3>
+        <div class="h-64" id="contentTypesChart"></div>
+    </div>
+</div> 

@@ -8,7 +8,7 @@ import jwt
 import numpy as np
 import torch
 from bson.objectid import ObjectId
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, redirect, url_for, session
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flasgger import Swagger, swag_from
@@ -39,7 +39,7 @@ import torch
 import torch.nn.functional as F
 import matplotlib.pyplot as plt
 from bson.objectid import ObjectId
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, redirect, url_for, session
 from flask_cors import CORS
 from flask_pymongo import PyMongo
 from flasgger import Swagger, swag_from
@@ -66,6 +66,59 @@ import whisper
 from pydub import AudioSegment
 from moviepy.editor import VideoFileClip, concatenate_videoclips, AudioFileClip
 from typing import List, Dict, Optional, Union, Any
+from dotenv import load_dotenv
+from authlib.integrations.flask_client import OAuth
+from urllib.parse import urlencode
+from werkzeug.exceptions import HTTPException
+# import env
+# Load environment variables
+load_dotenv()
+
+# Auth0 configuration
+device = 'cpu'
+
+# Define the model class (unchanged)
+class RobertaClass(torch.nn.Module):
+    def __init__(self):
+        super(RobertaClass, self).__init__()
+        self.l1 = RobertaModel.from_pretrained("roberta-base")
+        self.pre_classifier = torch.nn.Linear(768, 768)
+        self.dropout = torch.nn.Dropout(0.3)
+        self.classifier = torch.nn.Linear(768, 2)  # Binary classification
+
+    def forward(self, input_ids, attention_mask, token_type_ids):
+        output_1 = self.l1(input_ids=input_ids, attention_mask=attention_mask, token_type_ids=token_type_ids)
+        hidden_state = output_1[0]
+        pooler = hidden_state[:, 0]
+        pooler = self.pre_classifier(pooler)
+        pooler = torch.nn.ReLU()(pooler)
+        pooler = self.dropout(pooler)
+        output = self.classifier(pooler)
+        return output
+
+# Initialize the model, load state_dict, and tokenizer (unchanged)
+model = RobertaClass()
+model.load_state_dict(torch.load(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\pytorch_roberta_cyberbullying.bin', map_location=torch.device('cpu')))
+model.to(device)
+tokenizer = RobertaTokenizer.from_pretrained(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\tokenizer')
+
+# Get the set of stopwords (unchanged)
+stop_words = set(stopwords.words('english'))
+
+def requires_auth(f):
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        if 'profile' not in session:
+            return jsonify({'message': 'Authentication required'}), 401
+            
+        # Get user from MongoDB
+        user = mongo.db.users.find_one({'auth0_id': session['profile']['user_id']})
+        if not user:
+            return jsonify({'message': 'User not found'}), 404
+            
+        return f(user, *args, **kwargs)
+    return decorated
+
 cfg.change_settings({"IMAGEMAGICK_BINARY": "magick.exe"})
 import moviepy.config as cfg
 from better_profanity import profanity
@@ -83,6 +136,18 @@ logger = logging.getLogger(__name__)
 
 # Flask app setup
 app = Flask(__name__)
+oauth = OAuth(app)
+auth0 = oauth.register(
+    'auth0',
+    client_id=os.environ.get('AUTH0_CLIENT_ID'),
+    client_secret=os.environ.get('AUTH0_CLIENT_SECRET'),
+    api_base_url=f'https://{os.environ.get("AUTH0_DOMAIN")}',
+    access_token_url=f'https://{os.environ.get("AUTH0_DOMAIN")}/oauth/token',
+    authorize_url=f'https://{os.environ.get("AUTH0_DOMAIN")}/authorize',
+    client_kwargs={
+        'scope': 'openid profile email',
+    },
+)
 CORS(app, supports_credentials=True)
 Swagger(app)
 
@@ -92,34 +157,6 @@ app.config['MONGO_URI'] = 'mongodb://localhost:27017/document_analyzer'
 mongo = PyMongo(app)
 
 # RoBERTa model setup
-# class RobertaClass(torch.nn.Module):
-#     def __init__(self):
-#         super(RobertaClass, self).__init__()
-#         self.l1 = RobertaModel.from_pretrained("roberta-base")
-#         self.pre_classifier = torch.nn.Linear(768, 768)
-#         self.dropout = torch.nn.Dropout(0.3)
-#         self.classifier = torch.nn.Linear(768, 2)  # Binary classification
-
-#     def forward(self, input_ids, attention_mask):
-#         outputs = self.l1(input_ids=input_ids, attention_mask=attention_mask)
-#         hidden_state = outputs[0]
-#         pooler = hidden_state[:, 0]
-#         pooler = self.pre_classifier(pooler)
-#         pooler = torch.nn.ReLU()(pooler)
-#         pooler = self.dropout(pooler)
-#         output = self.classifier(pooler)
-#         return output
-
-# logger.info("Initializing RoBERTa model...")
-# model = RobertaClass()
-# tokenizer = RobertaTokenizer.from_pretrained(r'./tokenizer')
-# try:
-#     model.load_state_dict(torch.load("pytorch_roberta_cyberbullying.bin", map_location=torch.device('cpu')))
-#     model.to('cpu')
-#     model.eval()
-#     logger.info("RoBERTa model loaded successfully")
-# except Exception as e:
-#     logger.error(f"Error loading RoBERTa model: {str(e)}")
 
 # NudeNet Setup
 logger.info("Initializing NudeDetector...")
@@ -405,7 +442,7 @@ class VideoProcessor:
             return [
                 detection for detection in detections
                 if (detection.get('class') in ALLOWED_CLASSES and
-                    detection.get('score', 0) >= 0.40)  # 60% confidence threshold
+                    detection.get('score', 0) >= 0.20)  # 60% confidence threshold
             ]
 
         def custom_censor(image_path, detections):
@@ -1162,6 +1199,53 @@ def create_pdf_output(output_path, content, profane_words, total_words, profane_
 
     with open(output_path, "wb") as output_stream:
         output.write(output_stream)
+
+@app.route('/callback')
+def callback_handling():
+    auth0.authorize_access_token()
+    resp = auth0.get('userinfo')
+    userinfo = resp.json()
+
+    session['jwt_payload'] = userinfo
+    session['profile'] = {
+        'user_id': userinfo['sub'],
+        'name': userinfo.get('name', ''),
+        'picture': userinfo.get('picture', ''),
+        'email': userinfo.get('email', '')
+    }
+
+    # Store or update user in MongoDB
+    user_data = {
+        'auth0_id': userinfo['sub'],
+        'email': userinfo.get('email', ''),
+        'name': userinfo.get('name', ''),
+        'picture': userinfo.get('picture', ''),
+        'last_login': datetime.now()
+    }
+    
+    mongo.db.users.update_one(
+        {'auth0_id': userinfo['sub']},
+        {'$set': user_data},
+        upsert=True
+    )
+
+    return redirect('/dashboard')
+
+# @app.route('/login')
+# def login():
+#     return auth0.authorize_redirect(
+#         redirect_uri=os.environ.get('AUTH0_CALLBACK_URL'),
+#         audience=os.environ.get('API_AUDIENCE')
+#     )
+
+@app.route('/logout')
+def logout():
+    session.clear()
+    params = {
+        'returnTo': url_for('home', _external=True),
+        'client_id': os.environ.get('AUTH0_CLIENT_ID')
+    }
+    return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
 
 if __name__ == '__main__':
     logger.info("Starting Flask application")

@@ -1,0 +1,70 @@
+<div class="w-full max-w-md ml-6">
+    <div class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6">
+        <h4 class="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-4">Processing Options</h4>
+        
+        <div class="space-y-4">
+            <!-- Processing Type -->
+            <div>
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                    Processing Type
+                </label>
+                <div class="space-y-2">
+                    <label class="flex items-center">
+                        <input type="radio" x-model="action" value="censor" 
+                               class="form-radio text-indigo-600" name="action">
+                        <span class="ml-2 text-gray-700 dark:text-gray-300">Censor Content</span>
+                    </label>
+                    <label class="flex items-center">
+                        <input type="radio" x-model="action" value="analyze" 
+                               class="form-radio text-indigo-600" name="action">
+                        <span class="ml-2 text-gray-700 dark:text-gray-300">Analyze Only</span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- Video Processing Options -->
+            <template x-if="fileExtension === '.mp4' || fileExtension === '.avi'">
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                        Video Processing
+                    </label>
+                    <div class="space-y-2">
+                        <label class="flex items-center">
+                            <input type="radio" x-model="videoProcessing" value="both" 
+                                   class="form-radio text-indigo-600" name="videoProcessing">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Process Audio & Video</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" x-model="videoProcessing" value="audio_only" 
+                                   class="form-radio text-indigo-600" name="videoProcessing">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Process Audio Only</span>
+                        </label>
+                        <label class="flex items-center">
+                            <input type="radio" x-model="videoProcessing" value="video_only" 
+                                   class="form-radio text-indigo-600" name="videoProcessing">
+                            <span class="ml-2 text-gray-700 dark:text-gray-300">Process Video Only</span>
+                        </label>
+                    </div>
+                </div>
+            </template>
+
+            <!-- Submit Button -->
+            <button type="submit" @click="submitForm" 
+                    class="w-full bg-indigo-600 text-white py-2 px-4 rounded-md hover:bg-indigo-700 
+                           focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 
+                           transition duration-150 ease-in-out flex items-center justify-center"
+                    :class="{'opacity-50 cursor-not-allowed': isLoading || !fileSelected}"
+                    :disabled="isLoading || !fileSelected">
+                <template x-if="isLoading">
+                    <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" 
+                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z">
+                        </path>
+                    </svg>
+                </template>
+                <span x-text="isLoading ? 'Processing...' : 'Process File'"></span>
+            </button>
+        </div>
+    </div>
+</div> 

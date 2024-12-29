@@ -48,6 +48,7 @@
         userTrend: [],
         modalOpen: false,
         modalContent: null,
+        showSuccessModal: false,
         submitForm() {
             if (!this.fileSelected) {
                 alert('Please select a file to analyze.');
@@ -74,7 +75,7 @@
                     if (data.stats) {
                         this.updateAnalysisStats(data.stats);
                     }
-                    alert(data.message);
+                    this.showSuccessModal = true;
                 })
                 .catch(error => {
                     console.error('Error:', error);
@@ -142,6 +143,9 @@
                 this.fileSelected = true;
                 this.fileName = file.name;
                 this.fileExtension = file.name.split('.').pop().toLowerCase();
+                this.showSuccessModal = false;
+                this.showDownloadButton = false;
+                this.analysisResult = null;
             } else {
                 this.fileSelected = false;
                 this.fileName = '';
@@ -370,156 +374,214 @@
 
     <div class="flex h-screen bg-gray-100 dark:bg-gray-900">
         <!-- Sidebar -->
-        <div :class="{'translate-x-0 ease-out': sidebarOpen, '-translate-x-full ease-in': !sidebarOpen}"
-            class="fixed z-30 inset-y-0 left-0 w-64 transition-all duration-300 transform bg-indigo-600 dark:bg-indigo-800 overflow-y-auto lg:translate-x-0 lg:static lg:inset-0 rounded-r-lg">
-            <div class="flex items-center justify-between p-4">
-                <div class="flex items-center">
-                    <span class="text-white text-2xl mx-2 font-semibold">Dashboard</span>
+        <div :class="{
+            'w-64': !sidebarCollapsed && !isMobile,
+            'w-20': sidebarCollapsed && !isMobile,
+            'w-64': isMobile && sidebarOpen,
+            'w-0': isMobile && !sidebarOpen
+            }" 
+            class="fixed z-30 inset-y-0 left-0 transition-all duration-300 transform bg-gradient-to-br from-indigo-600 to-indigo-800 dark:from-indigo-800 dark:to-indigo-900 overflow-y-auto lg:static lg:inset-0 rounded-r-2xl lg:rounded-r-none shadow-xl"
+            x-data="{ 
+                sidebarCollapsed: false,
+                isMobile: window.innerWidth < 1024,
+                sidebarOpen: false
+            }"
+            @resize.window="isMobile = window.innerWidth < 1024">
+            
+            <!-- Sidebar header -->
+            <div class="flex items-center justify-between p-6">
+                <div class="flex items-center space-x-3" :class="{'justify-center': sidebarCollapsed && !isMobile}">
+                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span class="text-white text-2xl font-bold" x-show="!sidebarCollapsed || isMobile">Dashboard</span>
                 </div>
-                <button @click="sidebarOpen = false" class="text-white focus:outline-none lg:hidden">
-                    <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <path d="M6 18L18 6M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"
-                            stroke-linejoin="round" />
+                <!-- Collapse button (hidden on mobile) -->
+                <button @click="sidebarCollapsed = !sidebarCollapsed" 
+                        class="text-white hover:text-indigo-200 transition-colors duration-200"
+                        x-show="!isMobile">
+                    <svg x-show="!sidebarCollapsed" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
+                    </svg>
+                    <svg x-show="sidebarCollapsed" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                    </svg>
+                </button>
+                <!-- Mobile close button -->
+                <button @click="sidebarOpen = false" 
+                        class="text-white hover:text-indigo-200 transition-colors duration-200 lg:hidden"
+                        x-show="isMobile">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
                 </button>
             </div>
 
-            <nav class="mt-10">
-                <a @click="currentPage = 'home'; sidebarOpen = false"
-                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
-                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'home'}" href="#">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path>
-                    </svg>
-                    <span class="mx-3">Home</span>
-                </a>
-
-                <a @click="currentPage = 'scan'; sidebarOpen = false"
-                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
-                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'scan'}" href="#">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z">
-                        </path>
-                    </svg>
-                    <span class="mx-3">Scan a Document</span>
-                </a>
-
-                <a @click="currentPage = 'history'; fetchPastAnalyses(); sidebarOpen = false"
-                    class="flex items-center mt-4 py-2 px-6 text-gray-100 hover:bg-indigo-700 hover:bg-opacity-25 hover:text-gray-100 transition-colors duration-200"
-                    :class="{'bg-indigo-700 bg-opacity-25': currentPage === 'history'}" href="#">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
-                    </svg>
-                    <span class="mx-3">Past Analyses</span>
-                </a>
+            <!-- Updated navigation menu -->
+            <nav class="mt-6 px-4">
+                <template x-for="(item, index) in [
+                    { name: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', page: 'home' },
+                    { name: 'Scan Document', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', page: 'scan' },
+                    { name: 'History', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', page: 'history' },
+                    { name: 'Morph Detection', icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'morph' },
+                    { name: 'FAQs', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'faqs' }
+                ]">
+                    <a @click="currentPage = item.page; isMobile && (sidebarOpen = false)"
+                       class="flex items-center px-4 py-3 mb-3 transition-all duration-200 rounded-xl group hover:bg-white/10"
+                       :class="{
+                           'justify-center': sidebarCollapsed && !isMobile,
+                           'bg-white/10': currentPage === item.page
+                       }"
+                       href="#">
+                        <svg class="h-7 w-7 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" x-bind:d="item.icon"></path>
+                        </svg>
+                        <span class="mx-3 text-lg font-medium text-white" x-show="!sidebarCollapsed || isMobile" x-text="item.name"></span>
+                        <!-- Enhanced tooltip -->
+                        <div x-show="sidebarCollapsed && !isMobile" 
+                             class="absolute left-20 px-3 py-2 bg-gray-900 text-white text-lg rounded-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 whitespace-nowrap">
+                            <span x-text="item.name"></span>
+                            <div class="absolute left-0 top-1/2 -translate-x-1 -translate-y-1/2 border-8 border-transparent border-r-gray-900"></div>
+                        </div>
+                    </a>
+                </template>
             </nav>
         </div>
 
         <!-- Content area -->
         <div class="flex-1 flex flex-col overflow-hidden">
             <header
-                class="flex justify-between items-center py-4 px-6 bg-white dark:bg-gray-800 border-b-4 border-indigo-600 dark:border-indigo-500">
+                class="flex justify-between items-center py-4 px-6 bg-white dark:bg-gray-800 border-b border-indigo-600/10 dark:border-indigo-500/10 backdrop-blur-sm bg-opacity-80 dark:bg-opacity-80">
                 <div class="flex items-center">
-                    <button @click="sidebarOpen = !sidebarOpen"
-                        class="text-gray-500 dark:text-gray-300 focus:outline-none">
-                        <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M4 6H20M4 12H20M4 18H11" stroke="currentColor" stroke-width="2"
-                                stroke-linecap="round" stroke-linejoin="round" />
+                    <!-- Mobile menu button -->
+                    <button @click="sidebarOpen = !sidebarOpen" 
+                            class="text-gray-500 dark:text-gray-300 hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors duration-200 lg:hidden">
+                        <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h8" />
                         </svg>
                     </button>
+                    <!-- Page title -->
+                    <h1 class="text-xl font-bold text-gray-800 dark:text-white ml-4">
+                        <span x-text="currentPage.charAt(0).toUpperCase() + currentPage.slice(1)"></span>
+                    </h1>
                 </div>
 
-                <div class="flex items-center">
-                    <!-- Dark mode toggle -->
-                    <button @click="toggleDarkMode()" class="mr-4 p-2 rounded-full bg-gray-200 dark:bg-gray-700 transition duration-300">
-                        <svg x-show="!darkMode" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
-                        <svg x-show="darkMode" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                <div class="flex items-center space-x-4">
+                    <!-- Updated dark mode toggle with animation -->
+                    <button @click="toggleDarkMode()" 
+                            class="relative p-2 rounded-full bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 dark:focus:ring-indigo-400">
+                        <svg x-show="!darkMode" class="w-6 h-6 text-yellow-500 transform transition-transform duration-300 hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                        </svg>
+                        <svg x-show="darkMode" class="w-6 h-6 text-indigo-400 transform transition-transform duration-300 hover:rotate-90" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                        </svg>
                     </button>
-                    
-                    <!-- Profile dropdown -->
+
+                    <!-- Updated profile dropdown -->
                     <div class="relative" x-data="{ open: false }">
                         <button @click="open = !open"
-                            class="flex text-sm border-2 border-transparent rounded-full focus:outline-none focus:border-gray-300 transition duration-150 ease-in-out">
-                            <img class="h-8 w-8 rounded-full"
-                                src="#"
-                                alt="Profile photo">
+                                class="flex items-center space-x-2 relative focus:outline-none">
+                            <img class="h-9 w-9 rounded-full border-2 border-indigo-500 dark:border-indigo-400 object-cover transition-transform duration-200 transform hover:scale-105"
+                                 src="#"
+                                 alt="Profile photo">
+                            <span class="hidden md:block text-sm font-medium text-gray-700 dark:text-gray-200">John Doe</span>
                         </button>
-                        <div x-show="open" @click.away="open = false"
-                            class="origin-top-right absolute right-0 mt-2 w-48 rounded-md shadow-lg">
-                            <div class="py-1 rounded-md bg-white dark:bg-gray-800 shadow-xs">
-                                <a @click="currentPage = 'profile'; open = false"
-                                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-150 ease-in-out"
-                                    href="#">Your Profile</a>
-                                <a href="{{ url_for('logout') }}"
-                                    class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition duration-150 ease-in-out">Sign
-                                    out</a>
-                            </div>
+                        <div x-show="open" 
+                             @click.away="open = false"
+                             x-transition:enter="transition ease-out duration-200"
+                             x-transition:enter-start="opacity-0 scale-95"
+                             x-transition:enter-end="opacity-100 scale-100"
+                             x-transition:leave="transition ease-in duration-150"
+                             x-transition:leave-start="opacity-100 scale-100"
+                             x-transition:leave-end="opacity-0 scale-95"
+                             class="absolute right-0 mt-3 w-48 rounded-xl shadow-lg py-1 bg-white dark:bg-gray-800 ring-1 ring-black ring-opacity-5">
+                            <a @click="currentPage = 'profile'; open = false"
+                               class="block px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-indigo-50 dark:hover:bg-indigo-900/50 transition-colors duration-150"
+                               href="#">Your Profile</a>
+                            <a href="{{ url_for('logout') }}"
+                               class="block px-4 py-2 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/50 transition-colors duration-150">
+                                Sign out
+                            </a>
                         </div>
                     </div>
                 </div>
             </header>
 
-            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 dark:bg-gray-900">
-                <div class="container mx-auto px-6 py-8">
+            <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-50 dark:bg-gray-900">
+                <div class="container mx-auto px-8 py-10 max-w-7xl"> <!-- Increased max width and padding -->
                     <!-- Home Page -->
-                    <div x-show="currentPage === 'home'">
-                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200 mb-8">Welcome to Document Analyzer</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Recent Analyses</h2>
-                                <ul class="space-y-2">
+                    <div x-show="currentPage === 'home'" 
+                         x-transition:enter="transition-opacity duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100">
+                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-8">Welcome to Document Analyzer</h3>
+                        <div class="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-8"> <!-- Increased gap -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 p-8 transform hover:-translate-y-1"> <!-- Added transform effect -->
+                                <h2 class="text-2xl font-bold mb-6 text-gray-800 dark:text-white flex items-center space-x-3">
+                                    <svg class="w-8 h-8 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span class="text-2xl">Recent Analyses</span>
+                                </h2>
+                                <ul class="space-y-4">
                                     <template x-for="analysis in recentAnalyses" :key="analysis.id">
-                                        <li class="flex justify-between items-center text-gray-600 dark:text-gray-400">
-                                            <span x-text="analysis.original_filename"></span>
-                                            <span x-text="analysis.created_at" class="text-sm"></span>
+                                        <li class="flex flex-col sm:flex-row sm:items-center gap-2 p-4 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors duration-200 border border-gray-100 dark:border-gray-700">
+                                            <span x-text="analysis.original_filename" class="text-lg text-gray-700 dark:text-gray-300 font-medium truncate flex-1"></span>
+                                            <span x-text="new Date(analysis.created_at).toLocaleString()" 
+                                                  class="text-sm text-gray-500 dark:text-gray-400 whitespace-nowrap"></span>
                                         </li>
                                     </template>
                                 </ul>
                             </div>
-                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Content Types Analyzed</h2>
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6">
+                                <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-white flex items-center space-x-2">
+                                    <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>Content Types Analyzed</span>
+                                </h2>
                                 <div id="content-types-chart" class="h-64"></div>
                             </div>
-                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Page Visits</h2>
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6">
+                                <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-white flex items-center space-x-2">
+                                    <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>Page Visits</span>
+                                </h2>
                                 <p class="text-3xl font-bold text-gray-700 dark:text-gray-200" x-text="pageVisits"></p>
                             </div>
-                            <div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
-                                <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">User Trend</h2>
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-sm hover:shadow-md transition-shadow duration-300 p-6">
+                                <h2 class="text-2xl font-bold mb-4 text-gray-800 dark:text-white flex items-center space-x-2">
+                                    <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    <span>User Trend</span>
+                                </h2>
                                 <div id="user-trend-chart" class="h-64"></div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Scan Page -->
-                    <div x-show="currentPage === 'scan'">
-                        <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200">Scan a Document</h3>
-                        <div class="mt-8 flex">
+                    <div x-show="currentPage === 'scan'" class="space-y-8">
+                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-6">Scan a Document</h3>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
                             <!-- File upload component (left side) -->
-                            <div class="w-1/2 pr-4">
-                                <!-- Keep your existing file upload form here -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
                                 <form id="analyze-form" enctype="multipart/form-data" @submit.prevent="submitForm">
-                                    <label
-                                        class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Choose a
-                                        file</label>
-                                    <div
-                                        class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-md">
-                                        <div class="space-y-1 text-center">
-                                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor"
-                                                fill="none" viewBox="0 0 48 48" aria-hidden="true">
-                                                <path
-                                                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                                                    stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                    <h4 class="text-xl font-semibold text-gray-800 dark:text-white mb-6">Upload Document</h4>
+                                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors duration-200">
+                                        <div class="space-y-2 text-center">
+                                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
                                             </svg>
                                             <div class="flex text-sm text-gray-600 dark:text-gray-400">
-                                                <label for="file-upload"
-                                                    class="relative cursor-pointer bg-white dark:bg-gray-700 rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                                <label for="file-upload" class="relative cursor-pointer bg-white dark:bg-gray-700 rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
                                                     <span>Upload a file</span>
-                                                    <input id="file-upload" name="file" type="file" class="sr-only"
-                                                        accept=".txt,.pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4,.avi,.mov,.wav,.mp3"
-                                                        @change="updateFileInfo($event)">
+                                                    <input id="file-upload" name="file" type="file" class="sr-only" accept=".txt,.pdf,.doc,.docx,.jpg,.jpeg,.png,.mp4,.avi,.mov,.wav,.mp3" @change="updateFileInfo($event)">
                                                 </label>
                                                 <p class="pl-1">or drag and drop</p>
                                             </div>
@@ -528,141 +590,114 @@
                                             </p>
                                         </div>
                                     </div>
-                                    <div x-show="fileName" class="mt-2 text-sm text-gray-500 dark:text-gray-400">
-                                        Selected file: <span x-text="fileName" class="font-medium"></span>
-                                    </div>
-                                    <div class="mt-4" x-show="fileSelected">
-                                        <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">Action:</label>
-                                        <select x-model="action" 
-                                                class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md">
-                                            <template x-if="['pdf', 'doc', 'docx', 'txt'].includes(fileExtension)">
-                                                <optgroup label="Text Processing">
-                                                    <option value="censor">Censor</option>
-                                                    <option value="rephrase">Rephrase</option>
-                                                </optgroup>
-                                            </template>
-                                            <template x-if="['mp4', 'avi', 'mov'].includes(fileExtension)">
-                                                <optgroup label="Video Processing">
-                                                    <option value="audio_only">Censor Audio Only</option>
-                                                    <option value="video_only">Censor Video Only</option>
-                                                    <option value="audio_video">Censor Both Audio & Video</option>
-                                                </optgroup>
-                                            </template>
-                                            <template x-if="['wav', 'mp3'].includes(fileExtension)">
-                                                <optgroup label="Audio Processing">
-                                                    <option value="audio_only">Censor Audio</option>
-                                                </optgroup>
-                                            </template>
-                                        </select>
-                                    </div>
-                                    <button type="submit" class="mt-4 w-full bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 px-4 rounded-full transition duration-300" :disabled="!fileSelected || isLoading">
-                                        <span x-show="!isLoading">Analyze</span>
-                                        <span x-show="isLoading" class="flex items-center justify-center">
-                                            <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-                                                <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+
+                                    <div x-show="fileSelected" class="mt-6 space-y-4">
+                                        <div class="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                                            <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                                             </svg>
-                                            Processing...
-                                        </span>
-                                    </button>
+                                            <span x-text="fileName"></span>
+                                        </div>
+
+                                        <div class="mt-4">
+                                            <label class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Select Action:</label>
+                                            <select x-model="action" 
+                                                    class="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-700 dark:text-gray-200 focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                                                <template x-if="['pdf', 'doc', 'docx', 'txt'].includes(fileExtension)">
+                                                    <optgroup label="Text Processing">
+                                                        <option value="censor">Censor</option>
+                                                        <option value="rephrase">Rephrase</option>
+                                                    </optgroup>
+                                                </template>
+                                                <template x-if="['mp4', 'avi', 'mov'].includes(fileExtension)">
+                                                    <optgroup label="Video Processing">
+                                                        <option value="audio_only">Censor Audio Only</option>
+                                                        <option value="video_only">Censor Video Only</option>
+                                                        <option value="audio_video">Censor Both Audio & Video</option>
+                                                    </optgroup>
+                                                </template>
+                                                <template x-if="['wav', 'mp3'].includes(fileExtension)">
+                                                    <optgroup label="Audio Processing">
+                                                        <option value="audio_only">Censor Audio</option>
+                                                    </optgroup>
+                                                </template>
+                                            </select>
+                                        </div>
+
+                                        <button type="submit" 
+                                                class="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center"
+                                                :disabled="!fileSelected || isLoading">
+                                            <span x-show="!isLoading">Analyze Document</span>
+                                            <span x-show="isLoading" class="flex items-center">
+                                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Processing...
+                                            </span>
+                                        </button>
+                                    </div>
                                 </form>
                             </div>
-                            
-                            <!-- Analysis stats (right side) -->
-                            <div class="w-1/2 pl-4">
-                                <div id="analysis-stats" class="h-64"></div>
-                            </div>
-                        </div>
 
-                        <!-- Analysis Result -->
-                        <div x-show="showDownloadButton" 
-                             x-transition:enter="transition ease-out duration-300"
-                             x-transition:enter-start="opacity-0 transform scale-90"
-                             x-transition:enter-end="opacity-100 transform scale-100"
-                             class="mt-8 bg-green-100 border-l-4 border-green-500 text-green-700 p-4 rounded-lg shadow-md">
-                            <p class="font-bold">Woohoo! Your document has been successfully analyzed! 🎉</p>
-                            <p class="mt-2">You've just unlocked valuable insights from your document. Ready to explore the results?</p>
-                            <div class="mt-4">
-                                <button @click="viewAnalysisResult(analysisResult)"
-                                    class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-full transition duration-300 inline-block">
-                                    View Analysis Results
-                                </button>
-                            </div>
-                        </div>
+                            <!-- Instructions (right side) -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                                <h4 class="text-xl font-semibold text-gray-800 dark:text-white mb-6 flex items-center gap-3">
+                                    <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    How to Scan Documents
+                                </h4>
+                                
+                                <div class="space-y-6">
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">1</span>
+                                        </div>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Choose Your File</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                Click the upload area or drag and drop your document. We support various formats including PDF, DOC, TXT, and media files.
+                                            </p>
+                                        </div>
+                                    </div>
 
-                        <!-- FAQs -->
-                        <div class="mt-12">
-                            <h4 class="text-2xl font-medium text-gray-700 dark:text-gray-200 mb-4">FAQs</h4>
-                            <div x-data="{selected:null}">
-                                <ul class="shadow-box">
-                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
-                                        <button type="button" class="w-full px-8 py-6 text-left"
-                                            @click="selected !== 1 ? selected = 1 : selected = null">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
-                                                    How does the document analysis work?
-                                                </span>
-                                                <span class="ico-plus"></span>
-                                            </div>
-                                        </button>
-                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
-                                            style="" x-ref="container1"
-                                            x-bind:style="selected == 1 ? 'max-height: ' + $refs.container1.scrollHeight + 'px' : ''">
-                                            <div class="p-6">
-                                                <p class="text-gray-600 dark:text-gray-400">Our AI-powered system
-                                                    analyzes the content of your document, identifying key themes,
-                                                    sentiment, and potential issues. It uses advanced natural
-                                                    language processing techniques to provide insights and
-                                                    suggestions.</p>
-                                            </div>
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">2</span>
                                         </div>
-                                    </li>
-                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
-                                        <button type="button" class="w-full px-8 py-6 text-left"
-                                            @click="selected !== 2 ? selected = 2 : selected = null">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
-                                                    Why is document analysis relevant in today's world?
-                                                </span>
-                                                <span class="ico-plus"></span>
-                                            </div>
-                                        </button>
-                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
-                                            style="" x-ref="container2"
-                                            x-bind:style="selected == 2 ? 'max-height: ' + $refs.container2.scrollHeight + 'px' : ''">
-                                            <div class="p-6">
-                                                <p class="text-gray-600 dark:text-gray-400">In today's
-                                                    information-rich world, document analysis is crucial for
-                                                    efficiently processing large volumes of data, extracting
-                                                    valuable insights, and making informed decisions. It helps
-                                                    businesses and individuals save time, improve accuracy, and
-                                                    uncover patterns that might be missed through manual review.</p>
-                                            </div>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Select Processing Type</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                Choose between censoring sensitive information or rephrasing content, depending on your document type.
+                                            </p>
                                         </div>
-                                    </li>
-                                    <li class="relative border-b border-gray-200 dark:border-gray-700">
-                                        <button type="button" class="w-full px-8 py-6 text-left"
-                                            @click="selected !== 3 ? selected = 3 : selected = null">
-                                            <div class="flex items-center justify-between">
-                                                <span class="text-lg font-medium text-gray-700 dark:text-gray-200">
-                                                    What types of documents can be analyzed?
-                                                </span>
-                                                <span class="ico-plus"></span>
-                                            </div>
-                                        </button>
-                                        <div class="relative overflow-hidden transition-all max-h-0 duration-700"
-                                            style="" x-ref="container3"
-                                            x-bind:style="selected == 3 ? 'max-height: ' + $refs.container3.scrollHeight + 'px' : ''">
-                                            <div class="p-6">
-                                                <p class="text-gray-600 dark:text-gray-400">Our system can analyze a
-                                                    wide range of document types, including PDFs, Word documents,
-                                                    plain text files, and even images containing text. We support
-                                                    various formats to accommodate different user needs and document
-                                                    sources.</p>
-                                            </div>
+                                    </div>
+
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">3</span>
                                         </div>
-                                    </li>
-                                </ul>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Review Results</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                Once processing is complete, you can preview and download your analyzed document with the applied changes.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="mt-8 p-4 bg-indigo-50 dark:bg-indigo-900/50 rounded-lg">
+                                        <div class="flex items-center gap-3">
+                                            <svg class="w-6 h-6 text-indigo-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <span class="text-sm font-medium text-indigo-600 dark:text-indigo-400">Pro Tip</span>
+                                        </div>
+                                        <p class="mt-2 text-sm text-gray-600 dark:text-gray-300">
+                                            For best results, ensure your documents are clear and properly formatted. Large files may take longer to process.
+                                        </p>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -733,6 +768,181 @@
                             </ul>
                         </div>
                     </div>
+
+                    <!-- Add Morph Detection page -->
+                    <div x-show="currentPage === 'morph'"
+                         x-transition:enter="transition-opacity duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100">
+                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-8">Morph Detection</h3>
+                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                            <div class="max-w-3xl mx-auto">
+                                <p class="text-gray-600 dark:text-gray-300 mb-6">
+                                    Upload images to detect potential morphing artifacts and manipulations.
+                                </p>
+                                <!-- Add your morph detection form/content here -->
+                                <div class="mt-8">
+                                    <!-- Placeholder for morph detection functionality -->
+                                    <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center">
+                                        <p class="text-gray-500 dark:text-gray-400">
+                                            Morph detection feature coming soon...
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add FAQ to the navigation menu (in the existing template array) -->
+                    <template x-for="(item, index) in [
+                        { name: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', page: 'home' },
+                        { name: 'Scan Document', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', page: 'scan' },
+                        { name: 'History', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', page: 'history' },
+                        { name: 'Morph Detection', icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'morph' },
+                        { name: 'FAQs', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'faqs' }
+                    ]">
+                        <!-- Existing template content -->
+                    </template>
+
+                    <!-- Add the FAQs page content -->
+                    <div x-show="currentPage === 'faqs'"
+                         x-transition:enter="transition-opacity duration-300"
+                         x-transition:enter-start="opacity-0"
+                         x-transition:enter-end="opacity-100"
+                         class="space-y-8">
+                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-8">Frequently Asked Questions</h3>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+                            <!-- Document Analysis Section -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+                                <h4 class="text-xl font-semibold text-indigo-600 dark:text-indigo-400 mb-6 flex items-center gap-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                    Document Analysis
+                                </h4>
+                                <div x-data="{ selected: null }" class="space-y-4">
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <button @click="selected !== 1 ? selected = 1 : selected = null"
+                                                class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+                                            <span class="font-medium text-gray-700 dark:text-gray-200">How does the document analysis work?</span>
+                                            <svg class="w-5 h-5 transform transition-transform duration-200" 
+                                                 :class="{'rotate-180': selected === 1}"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div x-show="selected === 1" 
+                                                 x-transition:enter="transition-opacity duration-200"
+                                                 x-transition:enter-start="opacity-0"
+                                                 x-transition:enter-end="opacity-100"
+                                                 class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                            Our AI-powered system analyzes documents using advanced natural language processing to identify sensitive information, potential security risks, and content patterns. It supports multiple file formats and provides detailed analysis reports.
+                                        </div>
+                                    </div>
+
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <button @click="selected !== 2 ? selected = 2 : selected = null"
+                                                class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+                                            <span class="font-medium text-gray-700 dark:text-gray-200">What file formats are supported?</span>
+                                            <svg class="w-5 h-5 transform transition-transform duration-200" 
+                                                 :class="{'rotate-180': selected === 2}"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div x-show="selected === 2" 
+                                                 x-transition:enter="transition-opacity duration-200"
+                                                 x-transition:enter-start="opacity-0"
+                                                 x-transition:enter-end="opacity-100"
+                                                 class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                            We support a wide range of formats including PDF, DOC/DOCX, TXT, RTF, images (JPG, PNG), and various video formats (MP4, AVI). Each format undergoes specialized processing for optimal results.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Morph Detection Section -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+                                <h4 class="text-xl font-semibold text-indigo-600 dark:text-indigo-400 mb-6 flex items-center gap-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                    Morph Detection
+                                </h4>
+                                <div x-data="{ selected: null }" class="space-y-4">
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <button @click="selected !== 1 ? selected = 1 : selected = null"
+                                                class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+                                            <span class="font-medium text-gray-700 dark:text-gray-200">What is morph detection?</span>
+                                            <svg class="w-5 h-5 transform transition-transform duration-200" 
+                                                 :class="{'rotate-180': selected === 1}"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div x-show="selected === 1" 
+                                                 x-transition:enter="transition-opacity duration-200"
+                                                 x-transition:enter-start="opacity-0"
+                                                 x-transition:enter-end="opacity-100"
+                                                 class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                            Morph detection is an advanced security feature that identifies potential manipulations or morphing in images and documents. It helps detect unauthorized alterations and ensure content authenticity.
+                                        </div>
+                                    </div>
+
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <button @click="selected !== 2 ? selected = 2 : selected = null"
+                                                class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+                                            <span class="font-medium text-gray-700 dark:text-gray-200">How accurate is the detection?</span>
+                                            <svg class="w-5 h-5 transform transition-transform duration-200" 
+                                                 :class="{'rotate-180': selected === 2}"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div x-show="selected === 2" 
+                                                 x-transition:enter="transition-opacity duration-200"
+                                                 x-transition:enter-start="opacity-0"
+                                                 x-transition:enter-end="opacity-100"
+                                                 class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                            Our morph detection system achieves high accuracy using advanced AI algorithms. It can detect subtle manipulations while minimizing false positives. Regular updates improve detection capabilities.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Security Section -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-6">
+                                <h4 class="text-xl font-semibold text-indigo-600 dark:text-indigo-400 mb-6 flex items-center gap-3">
+                                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v8a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                                    </svg>
+                                    Security & Privacy
+                                </h4>
+                                <div x-data="{ selected: null }" class="space-y-4">
+                                    <!-- Add security-related questions -->
+                                    <div class="border border-gray-200 dark:border-gray-700 rounded-lg">
+                                        <button @click="selected !== 1 ? selected = 1 : selected = null"
+                                                class="w-full px-4 py-3 text-left flex justify-between items-center hover:bg-gray-50 dark:hover:bg-gray-700/50 rounded-lg transition-colors duration-200">
+                                            <span class="font-medium text-gray-700 dark:text-gray-200">How is my data protected?</span>
+                                            <svg class="w-5 h-5 transform transition-transform duration-200" 
+                                                 :class="{'rotate-180': selected === 1}"
+                                                 fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                            </svg>
+                                        </button>
+                                        <div x-show="selected === 1" 
+                                                 x-transition:enter="transition-opacity duration-200"
+                                                 x-transition:enter-start="opacity-0"
+                                                 x-transition:enter-end="opacity-100"
+                                                 class="px-4 py-3 text-gray-600 dark:text-gray-400">
+                                            We employ end-to-end encryption, secure storage, and strict access controls. Your documents are processed in isolated environments and automatically deleted after analysis unless specifically saved.
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </main>
         </div>
@@ -740,23 +950,74 @@
 
     <!-- Add this just before the closing </body> tag -->
     <div x-show="modalOpen" 
-         class="fixed inset-0 z-50 overflow-auto bg-black bg-opacity-50 flex items-center justify-center"
+         class="fixed inset-0 z-50 overflow-auto bg-black/50 backdrop-blur-sm flex items-center justify-center"
          x-transition:enter="transition ease-out duration-300"
          x-transition:enter-start="opacity-0"
          x-transition:enter-end="opacity-100"
          x-transition:leave="transition ease-in duration-200"
          x-transition:leave-start="opacity-100"
          x-transition:leave-end="opacity-0"
-         @click.away="closeModal()"
-         style="backdrop-filter: blur(5px);">
-        <div class="relative w-11/12 h-5/6 bg-white dark:bg-gray-800 rounded-lg shadow-xl">
-            <button @click="closeModal()" class="absolute top-0 right-0 mt-4 mr-4 text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-white transition duration-150 rounded-full w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-800 border border-red-600 dark:border-red-400">
+         @click.away="closeModal()">
+        <div class="relative w-11/12 h-5/6 bg-white dark:bg-gray-800 rounded-2xl shadow-2xl">
+            <button @click="closeModal()" 
+                    class="absolute -top-4 -right-4 mt-4 mr-4 text-red-600 hover:text-red-700 dark:text-red-400 dark:hover:text-red-300 transition duration-150 rounded-full w-8 h-8 flex items-center justify-center bg-white dark:bg-gray-800 shadow-lg">
                 <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                 </svg>
             </button>
             <div class="w-full h-full p-4">
-                <iframe x-bind:src="modalContent" class="w-full h-full" frameborder="0"></iframe>
+                <iframe x-bind:src="modalContent" class="w-full h-full rounded-xl" frameborder="0"></iframe>
+            </div>
+        </div>
+    </div>
+
+    <div x-show="showSuccessModal" 
+         class="fixed inset-0 z-50 overflow-auto bg-black/40 backdrop-blur-md flex items-center justify-center"
+         x-transition:enter="transition ease-out duration-300"
+         x-transition:enter-start="opacity-0 backdrop-blur-0"
+         x-transition:enter-end="opacity-100 backdrop-blur-md"
+         x-transition:leave="transition ease-in duration-200"
+         x-transition:leave-start="opacity-100 backdrop-blur-md"
+         x-transition:leave-end="opacity-0 backdrop-blur-0"
+         @click.away="showSuccessModal = false">
+        <div class="relative w-full max-w-md transform transition-all"
+             x-transition:enter="ease-out duration-300"
+             x-transition:enter-start="opacity-0 scale-95 translate-y-4"
+             x-transition:enter-end="opacity-100 scale-100 translate-y-0"
+             x-transition:leave="ease-in duration-200"
+             x-transition:leave-start="opacity-100 scale-100 translate-y-0"
+             x-transition:leave-end="opacity-0 scale-95 translate-y-4">
+            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-6 relative">
+                <div class="text-center">
+                    <!-- Success icon -->
+                    <div class="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-green-100 dark:bg-green-900 mb-6">
+                        <svg class="h-10 w-10 text-green-500 dark:text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    
+                    <!-- Success message -->
+                    <h3 class="text-2xl font-bold text-gray-900 dark:text-white mb-4">Analysis Complete!</h3>
+                    <p class="text-gray-600 dark:text-gray-300 mb-8">
+                        Your document has been successfully analyzed. You can now view or download the results.
+                    </p>
+                    
+                    <!-- Action buttons -->
+                    <div class="flex justify-center space-x-4">
+                        <button @click="viewAnalysisResult(analysisResult); showSuccessModal = false"
+                                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-2 rounded-lg transition duration-200 flex items-center">
+                            <svg class="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                            </svg>
+                            View Results
+                        </button>
+                        <button @click="showSuccessModal = false"
+                                class="bg-gray-200 dark:bg-gray-700 hover:bg-gray-300 dark:hover:bg-gray-600 text-gray-800 dark:text-gray-200 px-6 py-2 rounded-lg transition duration-200">
+                            Close
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>

@@ -1,0 +1,13 @@
+<div class="bg-white dark:bg-gray-800 p-6 rounded-lg shadow-md">
+    <h2 class="text-2xl font-semibold mb-4 text-gray-700 dark:text-gray-200">Page Visits</h2>
+    <div class="text-center">
+        <p class="text-3xl font-bold text-gray-700 dark:text-gray-200" x-text="pageVisits"></p>
+        <p class="text-sm text-gray-500 dark:text-gray-400 mt-1">Total Visits</p>
+    </div>
+    <div class="mt-4 flex justify-between text-sm text-gray-500 dark:text-gray-400">
+        <span>Last 24 hours</span>
+        <span x-show="pageVisits > 0" class="text-green-500">
+            <span class="font-medium">↑ 12%</span> vs previous day
+        </span>
+    </div>
+</div> 

@@ -1,0 +1,90 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div x-data="analysisHistory()">
+    <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200">Analysis History</h3>
+    <div class="mt-4">
+        {% include 'dashboard/components/analysis_list.html' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function analysisHistory() {
+    return {
+        pastAnalyses: [],
+        
+        init() {
+            this.fetchPastAnalyses();
+        },
+        
+        async fetchPastAnalyses() {
+            fetch(`${BASE_URL}/past_analyses`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': localStorage.getItem('token')
+                }
+            })
+                .then(response => response.json())
+                .then(data => {
+                    this.$nextTick(() => {
+                        this.pastAnalyses = data.map(analysis => ({
+                            ...analysis,
+                            isDownloading: false,
+                            created_at: new Date(analysis.created_at).toLocaleString()
+                        }));
+                        console.log('Past analyses updated:', this.pastAnalyses);
+                    });
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                });
+        },
+        
+        viewAnalysisResult(analysisId) {
+            const token = localStorage.getItem('token');
+            fetch(`${BASE_URL}/view_analysis/${analysisId}`, {
+                headers: {
+                    'Authorization': token
+                }
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = URL.createObjectURL(blob);
+                this.modalContent = url;
+                this.modalOpen = true;
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while loading the file. Please try again.');
+            });
+        },
+        
+        downloadAnalysisResult(analysisId, filename) {
+            const token = localStorage.getItem('token');
+            fetch(`${BASE_URL}/download_analysis/${analysisId}`, {
+                headers: {
+                    'Authorization': token
+                }
+            })
+            .then(response => response.blob())
+            .then(blob => {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = filename;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while downloading the file. Please try again.');
+            });
+        }
+    }
+}
+</script>
+{% endblock %} 

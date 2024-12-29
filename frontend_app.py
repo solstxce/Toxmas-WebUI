@@ -72,46 +72,46 @@ def register():
 def dashboard():
     return render_template('dashboard.html')
 
-# @app.route('/dashboard/scan')
-# @login_required
-# def dashboard_scan():
-#     return render_template('dashboard/scan.html')
+@app.route('/dashboard/scan')
+@login_required
+def dashboard_scan():
+    return render_template('dashboard/scan.html')
 
-# @app.route('/dashboard/history')
-# @login_required
-# def dashboard_history():
-#     token = request.cookies.get('token')
-#     headers = {'Authorization': token}
-#     past_analyses = requests.get(f"{BACKEND_URL}/past_analyses", headers=headers).json()
-#     return render_template('dashboard/history.html', past_analyses=past_analyses)
+@app.route('/dashboard/history')
+@login_required
+def dashboard_history():
+    token = request.cookies.get('token')
+    headers = {'Authorization': token}
+    past_analyses = requests.get(f"{BACKEND_URL}/past_analyses", headers=headers).json()
+    return render_template('dashboard/history.html', past_analyses=past_analyses)
 
-# @app.route('/dashboard/profile')
-# @login_required
-# def dashboard_profile():
-#     token = request.cookies.get('token')
-#     headers = {'Authorization': token}
-#     user_data = requests.get(f"{BACKEND_URL}/user_profile", headers=headers).json()
-#     return render_template('dashboard/profile.html', user_data=user_data)
+@app.route('/dashboard/profile')
+@login_required
+def dashboard_profile():
+    token = request.cookies.get('token')
+    headers = {'Authorization': token}
+    user_data = requests.get(f"{BACKEND_URL}/user_profile", headers=headers).json()
+    return render_template('dashboard/profile.html', user_data=user_data)
 
-# # Add these new API endpoints for dashboard data
-# @app.route('/api/dashboard/stats')
-# @login_required
-# def dashboard_stats():
-#     token = request.cookies.get('token')
-#     headers = {'Authorization': token}
+# Add these API endpoints for dashboard data
+@app.route('/api/dashboard/stats')
+@login_required
+def dashboard_stats():
+    token = request.cookies.get('token')
+    headers = {'Authorization': token}
     
-#     # Fetch all required dashboard data
-#     recent_analyses = requests.get(f"{BACKEND_URL}/recent_analyses", headers=headers).json()
-#     content_types = requests.get(f"{BACKEND_URL}/content_types", headers=headers).json()
-#     page_visits = requests.get(f"{BACKEND_URL}/api/page_visits", headers=headers).json()
-#     user_trend = requests.get(f"{BACKEND_URL}/api/user_trend", headers=headers).json()
+    # Fetch all required dashboard data
+    recent_analyses = requests.get(f"{BACKEND_URL}/recent_analyses", headers=headers).json()
+    content_types = requests.get(f"{BACKEND_URL}/content_types", headers=headers).json()
+    page_visits = requests.get(f"{BACKEND_URL}/api/page_visits", headers=headers).json()
+    user_trend = requests.get(f"{BACKEND_URL}/api/user_trend", headers=headers).json()
     
-#     return jsonify({
-#         'recent_analyses': recent_analyses,
-#         'content_types': content_types,
-#         'page_visits': page_visits,
-#         'user_trend': user_trend
-#     })
+    return jsonify({
+        'recent_analyses': recent_analyses,
+        'content_types': content_types,
+        'page_visits': page_visits,
+        'user_trend': user_trend
+    })
 
 @app.route('/analyze', methods=['POST'])
 @login_required
@@ -203,6 +203,14 @@ def get_page_visits():
         return jsonify({'pageVisits': data['pageviews']['value']})
     else:
         return jsonify({'error': 'Failed to fetch page visits data'}), 500
+
+@app.route('/about')
+def about():
+    return render_template('about.html')
+
+@app.route('/contact')
+def contact():
+    return render_template('contact.html')
 
 if __name__ == '__main__':
     app.run(debug=True, port=5001)  # Run on a different port than the backend

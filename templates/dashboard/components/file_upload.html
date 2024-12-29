@@ -1,0 +1,22 @@
+<div class="w-full max-w-xl">
+    <form id="analyze-form" class="bg-white dark:bg-gray-800 shadow-md rounded-lg p-6" @submit.prevent="submitForm">
+        <div class="mb-6">
+            <div class="flex items-center justify-center w-full">
+                <label class="flex flex-col w-full h-32 border-4 border-dashed hover:bg-gray-100 dark:hover:bg-gray-700 
+                            hover:border-gray-300 dark:hover:border-gray-500">
+                    <div class="flex flex-col items-center justify-center pt-7">
+                        <svg class="w-12 h-12 text-gray-400 group-hover:text-gray-600" 
+                             fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" 
+                                  d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/>
+                        </svg>
+                        <p class="pt-1 text-sm tracking-wider text-gray-400 group-hover:text-gray-600" 
+                           x-text="fileSelected ? fileName : 'Upload a file'">
+                        </p>
+                    </div>
+                    <input type="file" class="opacity-0" name="file" @change="updateFileInfo($event)" />
+                </label>
+            </div>
+        </div>
+    </form>
+</div> 

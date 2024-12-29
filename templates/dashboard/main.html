@@ -1,0 +1,121 @@
+{% extends 'dashboard/base.html' %}
+
+{% block content %}
+<div x-data="dashboardHome()">
+    <h3 class="text-3xl font-medium text-gray-700 dark:text-gray-200 mb-8">Welcome to Document Analyzer</h3>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {% include 'dashboard/components/recent_analyses.html' %}
+        {% include 'dashboard/components/content_types.html' %}
+        {% include 'dashboard/components/page_visits.html' %}
+        {% include 'dashboard/components/user_trend.html' %}
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+function dashboardHome() {
+    return {
+        recentAnalyses: [],
+        contentTypes: {},
+        pageVisits: 0,
+        userTrend: [],
+        
+        init() {
+            this.fetchDashboardStats();
+        },
+        
+        async fetchDashboardStats() {
+            try {
+                const response = await fetch('/api/dashboard/stats');
+                const data = await response.json();
+                this.recentAnalyses = data.recent_analyses;
+                this.contentTypes = data.content_types;
+                this.pageVisits = data.page_visits;
+                this.userTrend = data.user_trend;
+                this.renderCharts();
+            } catch (error) {
+                console.error('Error fetching dashboard stats:', error);
+            }
+        },
+        
+        renderCharts() {
+            if (Object.keys(this.contentTypes).length > 0) {
+                const colors = [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF',
+                    '#FF9F40', '#45B39D', '#F06292', '#26C6DA', '#7986CB'
+                ];
+                const contentTypeData = [{
+                    values: Object.values(this.contentTypes),
+                    labels: Object.keys(this.contentTypes),
+                    type: 'pie',
+                    textinfo: 'label+percent',
+                    insidetextorientation: 'radial',
+                    marker: {
+                        colors: colors,
+                        line: {
+                            color: this.darkMode ? '#1F2937' : '#F3F4F6',
+                            width: 2
+                        }
+                    },
+                    //hole: 0.5
+                    
+                }];
+                const layout = {
+                    title: 'Content Types',
+                    height: 250,  // Reduced from 300
+                    //width: 250,   // Added to make it square
+                    margin: { t: 30, b: 0, l: 0, r: 0 },
+                    paper_bgcolor: 'rgba(0,0,0,0)',
+                    plot_bgcolor: 'rgba(0,0,0,0)',
+                    font: { color: this.darkMode ? '#fff' : '#000' },
+                    showlegend: false
+                };
+                Plotly.newPlot('content-types-chart', contentTypeData, layout);
+            } else {
+                console.log('No content types data available');
+            }
+
+            // Render user trend line chart
+            const userTrendData = [{
+                x: this.userTrend.map(item => item.date),
+                y: this.userTrend.map(item => item.visitors),
+                type: 'scatter',
+                mode: 'lines+markers',
+                line: {
+                    color: this.darkMode ? '#60A5FA' : '#3B82F6',
+                    width: 3
+                },
+                marker: {
+                    color: this.darkMode ? '#93C5FD' : '#60A5FA',
+                    size: 8
+                }
+            }];
+            const layout = {
+                title: 'User Trend (Past Week)',
+                titlefont: { color: this.darkMode ? '#fff' : '#000' },
+                margin: { t: 30, b: 40, l: 40, r: 20 },
+                height: 250,
+                paper_bgcolor: 'rgba(0,0,0,0)',
+                plot_bgcolor: 'rgba(0,0,0,0)',
+                font: { color: this.darkMode ? '#fff' : '#000' },
+                xaxis: {
+                    title: 'Date',
+                    titlefont: { color: this.darkMode ? '#fff' : '#000' },
+                    tickfont: { color: this.darkMode ? '#fff' : '#000' },
+                    showgrid: false
+                },
+                yaxis: {
+                    title: 'Visitors',
+                    titlefont: { color: this.darkMode ? '#fff' : '#000' },
+                    tickfont: { color: this.darkMode ? '#fff' : '#000' },
+                    showgrid: true,
+                    gridcolor: this.darkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'
+                }
+            };
+            Plotly.newPlot('user-trend-chart', userTrendData, layout);
+        }
+    }
+}
+</script>
+{% endblock %} 

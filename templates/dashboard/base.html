@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}Dashboard - ToxMas Document Analyzer{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script defer src="https://cloud.umami.is/script.js" data-website-id="fd4b2aa0-cdf8-4735-a1d5-8918dc88a047"></script>
+    {% block extra_head %}{% endblock %}
+</head>
+<body class="bg-gray-100 dark:bg-gray-900" x-data="dashboardBase()">
+    {% include 'dashboard/components/sidebar.html' %}
+    
+    <div class="flex-1 flex flex-col overflow-hidden">
+        {% include 'dashboard/components/header.html' %}
+        
+        <main class="flex-1 overflow-x-hidden overflow-y-auto bg-gray-200 dark:bg-gray-900">
+            <div class="container mx-auto px-6 py-8">
+                {% block content %}{% endblock %}
+            </div>
+        </main>
+    </div>
+
+    {% include 'dashboard/components/modal.html' %}
+    
+    <script>
+        const BASE_URL = 'http://localhost:5000';
+        
+        function dashboardBase() {
+            return {
+                darkMode: localStorage.getItem('theme') === 'dark',
+                sidebarOpen: false,
+                currentPage: '{{ request.endpoint }}',
+                profileDropdownOpen: false,
+                modalOpen: false,
+                modalContent: null,
+                
+                toggleDarkMode() {
+                    this.darkMode = !this.darkMode;
+                    localStorage.setItem('theme', this.darkMode ? 'dark' : 'light');
+                },
+                
+                closeModal() {
+                    this.modalOpen = false;
+                    if (this.modalContent) {
+                        URL.revokeObjectURL(this.modalContent);
+                    }
+                    this.modalContent = null;
+                }
+            }
+        }
+    </script>
+    {% block extra_scripts %}{% endblock %}
+</body>
+</html> 

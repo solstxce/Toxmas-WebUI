@@ -70,6 +70,7 @@ from dotenv import load_dotenv
 from authlib.integrations.flask_client import OAuth
 from urllib.parse import urlencode
 from werkzeug.exceptions import HTTPException
+import requests
 # import env
 # Load environment variables
 load_dotenv()
@@ -97,10 +98,10 @@ class RobertaClass(torch.nn.Module):
         return output
 
 # Initialize the model, load state_dict, and tokenizer (unchanged)
-model = RobertaClass()
-model.load_state_dict(torch.load(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\pytorch_roberta_cyberbullying.bin', map_location=torch.device('cpu')))
-model.to(device)
-tokenizer = RobertaTokenizer.from_pretrained(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\tokenizer')
+# model = RobertaClass()
+# model.load_state_dict(torch.load(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\pytorch_roberta_cyberbullying.bin', map_location=torch.device('cpu')))
+# model.to(device)
+# tokenizer = RobertaTokenizer.from_pretrained(r'C:\Projects\AntiCyberBullying\Document_Analyzer\model_and_tokenizer\tokenizer')
 
 # Get the set of stopwords (unchanged)
 stop_words = set(stopwords.words('english'))
@@ -197,15 +198,15 @@ stop_words = set(stopwords.words('english'))
 # RoBERTa model setup
 
 # List of abusive words
-abusive_word_list = [
-    "fuck", "shit", "asshole", "bitch", "cunt", "damn", "hell", "bastard", "motherfucker",
-    "dick", "pussy", "slut", "whore", "idiot", "stupid", "dumb", "retard", "loser", "jerk",
-    "moron", "imbecile", "cretin", "twat", "wanker", "prick", "dickhead", "arsehole", "fag",
-    "faggot", "homo", "queer", "dyke", "lesbo", "tranny", "nigger", "nigga", "spic", "kike",
-    "chink", "gook", "wetback", "beaner", "gringo", "cracker", "redneck", "hillbilly",
-    "white trash", "gay", "lgbt", "lesbians", "sexy", "fucking", "porn", "perv", "fart",
-    "ass", "boobs", "trash", "booty", "baddie"
-]
+# abusive_word_list = [
+#     "fuck", "shit", "asshole", "bitch", "cunt", "damn", "hell", "bastard", "motherfucker",
+#     "dick", "pussy", "slut", "whore", "idiot", "stupid", "dumb", "retard", "loser", "jerk",
+#     "moron", "imbecile", "cretin", "twat", "wanker", "prick", "dickhead", "arsehole", "fag",
+#     "faggot", "homo", "queer", "dyke", "lesbo", "tranny", "nigger", "nigga", "spic", "kike",
+#     "chink", "gook", "wetback", "beaner", "gringo", "cracker", "redneck", "hillbilly",
+#     "white trash", "gay", "lgbt", "lesbians", "sexy", "fucking", "porn", "perv", "fart",
+#     "ass", "boobs", "trash", "booty", "baddie"
+# ]
 
 
 # def predict(text, model, tokenizer, max_len=256):
@@ -1246,6 +1247,77 @@ def logout():
         'client_id': os.environ.get('AUTH0_CLIENT_ID')
     }
     return redirect(auth0.api_base_url + '/v2/logout?' + urlencode(params))
+
+@app.route('/process_inpainting', methods=['POST'])
+@token_required
+def process_inpainting(current_user):
+    if 'image' not in request.files:
+        return jsonify({'message': 'No image file provided'}), 400
+        
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+        
+    temp_file = None
+    files_to_close = []
+    
+    try:
+        # Save the temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+        file.save(temp_file.name)
+        temp_file.close()  # Close the file after saving
+        
+        # Send to inpainting server
+        SERVER_URL = "https://37aa-34-134-75-134.ngrok-free.app"
+        url = f"{SERVER_URL.rstrip('/')}/process_image"
+        
+        with open(temp_file.name, 'rb') as f:
+            files = {
+                'image': ('image.jpg', f, 'image/jpeg')
+            }
+            # Make request to inpainting server
+            response = requests.post(url, files=files)
+            response.raise_for_status()
+        
+        # Generate timestamp and filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        result_filename = f'inpainted_{timestamp}.jpg'
+        result_path = os.path.join(ANALYSIS_REPORTS_DIR, result_filename)
+        
+        # Save the processed image
+        with open(result_path, 'wb') as f:
+            f.write(response.content)
+            
+        # Save analysis result to MongoDB
+        analysis_result = {
+            'user_id': current_user['_id'],
+            'original_filename': file.filename,
+            'result_filename': result_filename,
+            'result_path': result_path,
+            'analysis_type': 'inpainting',
+            'created_at': datetime.utcnow()
+        }
+        
+        inserted_id = mongo.db.analyses.insert_one(analysis_result).inserted_id
+        
+        return jsonify({
+            'id': str(inserted_id),
+            'message': 'Image processed successfully',
+            'result_path': f'/download_analysis/{inserted_id}'
+        }), 200
+        
+    except requests.exceptions.RequestException as e:
+        return jsonify({'message': f'Error processing image: {str(e)}'}), 500
+    except Exception as e:
+        return jsonify({'message': f'Server error: {str(e)}'}), 500
+    finally:
+        # Clean up temporary file
+        if temp_file is not None:
+            try:
+                os.unlink(temp_file.name)
+            except (OSError, PermissionError):
+                # Log the error but don't fail if we can't delete the temp file
+                logger.warning(f"Could not delete temporary file: {temp_file.name}")
 
 if __name__ == '__main__':
     logger.info("Starting Flask application")

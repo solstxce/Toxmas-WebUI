@@ -1319,6 +1319,75 @@ def process_inpainting(current_user):
                 # Log the error but don't fail if we can't delete the temp file
                 logger.warning(f"Could not delete temporary file: {temp_file.name}")
 
+@app.route('/process_morphing', methods=['POST'])
+@token_required
+def process_morphing(current_user):
+    if 'image' not in request.files:
+        return jsonify({'message': 'No image file provided'}), 400
+        
+    file = request.files['image']
+    if file.filename == '':
+        return jsonify({'message': 'No selected file'}), 400
+        
+    temp_file = None
+    
+    try:
+        # Save the temporary file
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.jpg')
+        file.save(temp_file.name)
+        temp_file.close()  # Close the file after saving
+        
+        # Send to morphing detection server
+        SERVER_URL = "https://stable-ideally-slug.ngrok-free.app"
+        url = f"{SERVER_URL.rstrip('/')}/detect"
+        
+        with open(temp_file.name, 'rb') as f:
+            files = {
+                'image': ('image.jpg', f, 'image/jpeg')
+            }
+            # Make request to morphing server
+            response = requests.post(url, files=files)
+            response.raise_for_status()
+        
+        # Generate timestamp and filename
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        result_filename = f'morph_detection_{timestamp}.jpg'
+        result_path = os.path.join(ANALYSIS_REPORTS_DIR, result_filename)
+        
+        # Save the processed image and results
+        with open(result_path, 'wb') as f:
+            f.write(response.content)
+            
+        # Save analysis result to MongoDB
+        analysis_result = {
+            'user_id': current_user['_id'],
+            'original_filename': file.filename,
+            'result_filename': result_filename,
+            'result_path': result_path,
+            'analysis_type': 'morphing',
+            'created_at': datetime.utcnow()
+        }
+        
+        inserted_id = mongo.db.analyses.insert_one(analysis_result).inserted_id
+        
+        return jsonify({
+            'id': str(inserted_id),
+            'message': 'Morph detection completed successfully',
+            'result_path': f'/download_analysis/{inserted_id}'
+        }), 200
+        
+    except requests.exceptions.RequestException as e:
+        return jsonify({'message': f'Error processing image: {str(e)}'}), 500
+    except Exception as e:
+        return jsonify({'message': f'Server error: {str(e)}'}), 500
+    finally:
+        # Clean up temporary file
+        if temp_file is not None:
+            try:
+                os.unlink(temp_file.name)
+            except (OSError, PermissionError):
+                logger.warning(f"Could not delete temporary file: {temp_file.name}")
+
 if __name__ == '__main__':
     logger.info("Starting Flask application")
     app.run(debug=True,use_reloader=False,host='0.0.0.0',port=5000)

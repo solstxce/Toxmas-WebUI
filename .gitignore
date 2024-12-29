@@ -3,3 +3,4 @@ __pycache__/
 model_and_tokenizer/*
 analysis_reports/*
 TestingFolder/*
+bfg*

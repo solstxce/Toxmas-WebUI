@@ -52,6 +52,8 @@
         inpaintingFile: false,
         inpaintingFileName: '',
         isProcessing: false,
+        morphFile: false,
+        morphFileName: '',
         submitForm() {
             if (!this.fileSelected) {
                 alert('Please select a file to analyze.');
@@ -359,6 +361,46 @@
             
             try {
                 const response = await fetch('http://localhost:5000/process_inpainting', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': localStorage.getItem('token')
+                    },
+                    body: formData
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    this.showSuccessModal = true;
+                    this.analysisResult = data.id;
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + error.message);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while processing the image');
+            } finally {
+                this.isProcessing = false;
+            }
+        },
+        updateMorphFile(event) {
+            const file = event.target.files[0];
+            if (file) {
+                this.morphFile = true;
+                this.morphFileName = file.name;
+            } else {
+                this.morphFile = false;
+                this.morphFileName = '';
+            }
+        },
+        async submitMorphDetection() {
+            if (!this.morphFile) return;
+            
+            this.isProcessing = true;
+            const formData = new FormData(document.getElementById('morphing-form'));
+            
+            try {
+                const response = await fetch('http://localhost:5000/process_morphing', {
                     method: 'POST',
                     headers: {
                         'Authorization': localStorage.getItem('token')
@@ -850,41 +892,109 @@
                         </div>
                     </div>
 
-                    <!-- Add Morph Detection page -->
-                    <div x-show="currentPage === 'morph'"
+                    <!-- Update the Morph Detection section -->
+                    <div x-show="currentPage === 'morph'" 
                          x-transition:enter="transition-opacity duration-300"
                          x-transition:enter-start="opacity-0"
-                         x-transition:enter-end="opacity-100">
-                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-8">Morph Detection</h3>
-                        <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
-                            <div class="max-w-3xl mx-auto">
+                         x-transition:enter-end="opacity-100"
+                         class="space-y-8">
+                        
+                        <h3 class="text-3xl font-bold text-gray-800 dark:text-white mb-6">Morph Detection</h3>
+                        
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                            <!-- Upload Component -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                                <form id="morphing-form" @submit.prevent="submitMorphDetection">
+                                    <h4 class="text-xl font-semibold text-gray-800 dark:text-white mb-6">Upload Image</h4>
+                                    
+                                    <div class="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 dark:border-gray-600 border-dashed rounded-xl hover:border-indigo-500 dark:hover:border-indigo-400 transition-colors duration-200">
+                                        <div class="space-y-2 text-center">
+                                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                                            </svg>
+                                            <div class="flex text-sm text-gray-600 dark:text-gray-400">
+                                                <label for="morphing-upload" class="relative cursor-pointer bg-white dark:bg-gray-700 rounded-md font-medium text-indigo-600 hover:text-indigo-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-indigo-500">
+                                                    <span>Upload an image</span>
+                                                    <input id="morphing-upload" name="image" type="file" class="sr-only" accept="image/*" @change="updateMorphFile($event)">
+                                                </label>
+                                                <p class="pl-1">or drag and drop</p>
+                                            </div>
+                                            <p class="text-xs text-gray-500 dark:text-gray-400">
+                                                PNG, JPG, GIF up to 10MB
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div x-show="morphFile" class="mt-6 space-y-4">
+                                        <div class="flex items-center text-sm text-gray-600 dark:text-gray-300">
+                                            <svg class="w-5 h-5 mr-2 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                            </svg>
+                                            <span x-text="morphFileName"></span>
+                                        </div>
+
+                                        <button type="submit" 
+                                                class="w-full mt-6 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-lg transition duration-300 flex items-center justify-center"
+                                                :disabled="!morphFile || isProcessing">
+                                            <span x-show="!isProcessing">Detect Morphing</span>
+                                            <span x-show="isProcessing" class="flex items-center">
+                                                <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                </svg>
+                                                Processing...
+                                            </span>
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+
+                            <!-- Instructions -->
+                            <div class="bg-white dark:bg-gray-800 rounded-2xl shadow-lg p-8">
+                                <h4 class="text-xl font-semibold text-gray-800 dark:text-white mb-6">About Morph Detection</h4>
                                 <p class="text-gray-600 dark:text-gray-300 mb-6">
-                                    Upload images to detect potential morphing artifacts and manipulations.
+                                    Our advanced morph detection system uses AI to identify potential manipulations and morphing in images, ensuring content authenticity and security.
                                 </p>
-                                <!-- Add your morph detection form/content here -->
-                                <div class="mt-8">
-                                    <!-- Placeholder for morph detection functionality -->
-                                    <div class="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl p-8 text-center">
-                                        <p class="text-gray-500 dark:text-gray-400">
-                                            Morph detection feature coming soon...
-                                        </p>
+                                <div class="space-y-4">
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">1</span>
+                                        </div>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Upload Image</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                Select or drag and drop the image you want to analyze.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">2</span>
+                                        </div>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Analysis</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                Our AI will analyze the image for signs of manipulation or morphing.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div class="flex items-start gap-4">
+                                        <div class="flex-shrink-0 w-8 h-8 flex items-center justify-center rounded-full bg-indigo-100 dark:bg-indigo-900">
+                                            <span class="text-indigo-600 dark:text-indigo-400 font-semibold">3</span>
+                                        </div>
+                                        <div>
+                                            <h5 class="text-lg font-medium text-gray-800 dark:text-white">Results</h5>
+                                            <p class="text-gray-600 dark:text-gray-300 mt-1">
+                                                View detailed results showing any detected manipulations.
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     </div>
-
-                    <!-- Add FAQ to the navigation menu (in the existing template array) -->
-                    <template x-for="(item, index) in [
-                        { name: 'Home', icon: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6', page: 'home' },
-                        { name: 'Scan Document', icon: 'M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z', page: 'scan' },
-                        { name: 'History', icon: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z', page: 'history' },
-                        { name: 'Morph Detection', icon: 'M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'morph' },
-                        { name: 'FAQs', icon: 'M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z', page: 'faqs' },
-                        { name: 'Inpainter', icon: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', page: 'inpainter' }
-                    ]">
-                        <!-- Existing template content -->
-                    </template>
 
                     <!-- Add the FAQs page content -->
                     <div x-show="currentPage === 'faqs'"

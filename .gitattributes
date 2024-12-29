@@ -1,0 +1,4 @@
+*.bin filter=lfs diff=lfs merge=lfs -text
+model_and_tokenizer/*.bin filter=lfs diff=lfs merge=lfs -text
+*.bin filter=lfs diff=lfs merge=lfs -text
+model_and_tokenizer/*.bin filter=lfs diff=lfs merge=lfs -text
